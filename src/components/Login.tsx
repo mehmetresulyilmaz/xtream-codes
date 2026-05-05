@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Shield, Tv, Zap, ExternalLink, Lock } from 'lucide-react';
 import { XtreamCredentials } from '@/types';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 
 interface LoginProps {
   onLogin: (creds: XtreamCredentials) => void;

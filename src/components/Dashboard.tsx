@@ -7,7 +7,7 @@ import { XtreamClient } from '@/lib/xtream';
 import { XtreamAuthResponse, Category, Stream, Movie, Series } from '@/types';
 import { Button } from './ui/button';
 import { VideoPlayer } from './VideoPlayer';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from './ui/skeleton';
 import { toast } from 'sonner';
 
