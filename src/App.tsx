@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { XtreamClient } from '@/lib/xtream';
 import { XtreamAuthResponse, XtreamCredentials } from '@/types';
-import { Login } from './components/Login';
-import { Dashboard } from './components/Dashboard';
-import { Toaster } from './components/ui/sonner';
+import { Login } from '@/components/Login';
+import { Dashboard } from '@/components/Dashboard';
+import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 
 export default function App() {

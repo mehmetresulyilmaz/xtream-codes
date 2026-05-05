@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { Maximize, Minimize, Volume2, VolumeX, Play, Pause, Settings } from 'lucide-react';
-import { Button } from './ui/button';
-import { Slider } from './ui/slider';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 
 interface VideoPlayerProps {
   url: string;

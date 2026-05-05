@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from './ui/card';
-import { ScrollArea } from './ui/scroll-area';
-import { Input } from './ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
 import { Search, Play, Tv2, Film, Library, User, LogOut, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { XtreamClient } from '@/lib/xtream';
 import { XtreamAuthResponse, Category, Stream, Movie, Series } from '@/types';
-import { Button } from './ui/button';
+import { Button } from '@/components/ui/button';
 import { VideoPlayer } from './VideoPlayer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Skeleton } from './ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
 interface DashboardProps {
