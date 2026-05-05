@@ -11,6 +11,7 @@
     ],
     "skipLibCheck": true,
     "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
     "moduleDetection": "force",
     "allowJs": true,
@@ -20,7 +21,6 @@
         "./src/*"
       ]
     },
-    "allowImportingTsExtensions": true,
     "noEmit": true
   }
 }

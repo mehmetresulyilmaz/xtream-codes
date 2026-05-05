@@ -36,7 +36,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     if (stream === 'true') {
-      res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+      const contentType = response.headers['content-type'];
+      res.setHeader('Content-Type', typeof contentType === 'string' ? contentType : 'application/octet-stream');
       response.data.pipe(res);
     } else {
       res.status(response.status).json(response.data);
