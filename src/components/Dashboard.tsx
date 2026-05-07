@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Search, Play, Tv2, Film, Library, User, LogOut, ChevronRight, LayoutGrid, List, Menu } from 'lucide-react';
+import { Search, Play, Tv2, Film, Library, User, LogOut, ChevronRight, LayoutGrid, List, Menu, ShieldCheck, Settings, Lock } from 'lucide-react';
 import { XtreamClient } from '@/lib/xtream';
 import { XtreamAuthResponse, Category, Stream, Movie, Series } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,8 @@ import { VideoPlayer } from './VideoPlayer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 interface DashboardProps {
   client: XtreamClient;
@@ -17,7 +19,7 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-type TabType = 'live' | 'movie' | 'series';
+type TabType = 'live' | 'movie' | 'series' | 'settings';
 
 const StreamItem = ({ stream, viewMode, onClick }: { stream: any, viewMode: 'grid' | 'list', onClick: (s: any) => void }) => (
   <motion.div
@@ -77,9 +79,61 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
   const [currentStream, setCurrentStream] = useState<{ url: string; title: string } | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [pin, setPin] = useState(localStorage.getItem('xstream_pin') || '');
+  const [tempPin, setTempPin] = useState('');
+  const [showPinSetup, setShowPinSetup] = useState(false);
+  const [showPinVerify, setShowPinVerify] = useState(false);
+  const [verifyCallback, setVerifyCallback] = useState<(() => void) | null>(null);
+  const [lockedCategories, setLockedCategories] = useState<string[]>(JSON.parse(localStorage.getItem('xstream_locked_categories') || '[]'));
 
   useEffect(() => {
-    loadCategories(activeTab);
+    localStorage.setItem('xstream_locked_categories', JSON.stringify(lockedCategories));
+  }, [lockedCategories]);
+
+  const handleSavePin = () => {
+    if (tempPin.length !== 4) {
+      toast.error('PIN must be 4 digits');
+      return;
+    }
+    localStorage.setItem('xstream_pin', tempPin);
+    setPin(tempPin);
+    setShowPinSetup(false);
+    toast.success('Parental PIN saved');
+  };
+
+  const handleVerifyPin = () => {
+    if (tempPin === pin) {
+      setShowPinVerify(false);
+      setTempPin('');
+      if (verifyCallback) verifyCallback();
+      setVerifyCallback(null);
+    } else {
+      toast.error('Incorrect PIN');
+      setTempPin('');
+    }
+  };
+
+  const toggleCategoryLock = (catId: string) => {
+    if (lockedCategories.includes(catId)) {
+      setLockedCategories(lockedCategories.filter(id => id !== catId));
+    } else {
+      setLockedCategories([...lockedCategories, catId]);
+    }
+  };
+
+  const onCategoryClick = (catId: string) => {
+    if (lockedCategories.includes(catId) && pin) {
+      setVerifyCallback(() => () => setSelectedCategory(catId));
+      setShowPinVerify(true);
+    } else {
+      setSelectedCategory(catId);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'settings') {
+      loadCategories(activeTab);
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -100,13 +154,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
         setSelectedCategory(cats[0].category_id);
       }
     } catch (err) {
-      toast.error('Kategoriler yüklenemedi');
+      toast.error('Failed to load categories');
     } finally {
       setIsLoading(false);
     }
   };
 
   const loadStreams = async (type: TabType, catId?: string) => {
+    if (type === 'settings') return;
     setIsLoading(true);
     try {
       let data: (Stream | Movie | Series)[] = [];
@@ -115,7 +170,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
       else if (type === 'series') data = await client.getSeries(catId);
       setStreams(data);
     } catch (err) {
-      toast.error('Yayınlar yüklenemedi');
+      toast.error('Failed to load streams');
     } finally {
       setIsLoading(false);
     }
@@ -128,8 +183,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
   const handleStreamClick = (stream: any) => {
     const streamId = stream.stream_id || stream.series_id;
     const type = activeTab;
+    if (type === 'settings') return;
     const ext = stream.container_extension || 'm3u8';
-    const url = client.getStreamUrl(streamId, type, ext);
+    const url = client.getStreamUrl(streamId, type as 'live' | 'movie' | 'series', ext);
     setCurrentStream({ url, title: stream.name });
   };
 
@@ -151,9 +207,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
 
         <nav className="flex-1 px-4 space-y-2 mt-4">
            {[
-             { id: 'live', icon: <Tv2 className="h-5 w-5" />, label: 'Canlı TV' },
-             { id: 'movie', icon: <Film className="h-5 w-5" />, label: 'Film' },
-             { id: 'series', icon: <Library className="h-5 w-5" />, label: 'Dizi' }
+             { id: 'live', icon: <Tv2 className="h-5 w-5" />, label: 'Live TV' },
+             { id: 'movie', icon: <Film className="h-5 w-5" />, label: 'Movies' },
+             { id: 'series', icon: <Library className="h-5 w-5" />, label: 'Series' },
+             { id: 'settings', icon: <Settings className="h-5 w-5" />, label: 'Settings' }
            ].map((item) => (
              <button
                 key={item.id}
@@ -187,7 +244,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
              className="w-full flex items-center justify-center md:justify-start gap-3 p-3 rounded-xl text-red-500 hover:bg-red-500/10 transition-all font-bold text-sm"
            >
               <LogOut className="h-5 w-5" />
-              <span className="hidden md:block">Çıkış</span>
+              <span className="hidden md:block">Logout</span>
            </button>
         </div>
       </aside>
@@ -210,7 +267,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                   <div className="relative group">
                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
                      <Input 
-                       placeholder="Ara..." 
+                       placeholder="Search..." 
                        className="bg-zinc-900/40 border-zinc-800/50 pl-10 h-10 md:h-11 focus:border-orange-500/50 focus:ring-4 focus:ring-orange-500/5 transition-all text-sm"
                        value={searchQuery}
                        onChange={(e) => setSearchQuery(e.target.value)}
@@ -246,9 +303,63 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
 
          {/* Grid Body */}
          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            {/* Categories Rail */}
+            {activeTab === 'settings' ? (
+              <div className="flex-1 p-8 overflow-y-auto">
+                <div className="max-w-2xl mx-auto space-y-8">
+                  <header>
+                    <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+                    <p className="text-zinc-500 mt-2">Manage your account and parental controls.</p>
+                  </header>
+
+                  <section className="space-y-6">
+                    <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-3xl backdrop-blur-sm">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-orange-600/10 text-orange-500 rounded-2xl">
+                             <ShieldCheck className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold">Parental Control</h3>
+                            <p className="text-sm text-zinc-500">Lock categories with a 4-digit PIN.</p>
+                          </div>
+                        </div>
+                        <Button 
+                          onClick={() => {
+                            setTempPin('');
+                            setShowPinSetup(true);
+                          }}
+                          className="bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl"
+                        >
+                          {pin ? 'Change PIN' : 'Set PIN'}
+                        </Button>
+                      </div>
+
+                      {pin && (
+                        <div className="space-y-4">
+                          <div className="text-xs font-black uppercase tracking-widest text-zinc-600 pb-2 border-b border-zinc-800">Locked Categories</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                             {categories.map(cat => (
+                               <div key={cat.category_id} className="flex items-center justify-between p-3 rounded-xl bg-zinc-950/40 border border-zinc-800/50 group">
+                                 <span className="text-sm font-medium">{cat.category_name}</span>
+                                 <button 
+                                   onClick={() => toggleCategoryLock(cat.category_id)}
+                                   className={`p-2 rounded-lg transition-all ${lockedCategories.includes(cat.category_id) ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20' : 'text-zinc-600 hover:text-zinc-300 bg-zinc-900'}`}
+                                 >
+                                   {lockedCategories.includes(cat.category_id) ? <Lock className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                                 </button>
+                               </div>
+                             ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            ) : (
+              <>
             <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-zinc-800 flex flex-col bg-zinc-950/20 max-h-[150px] md:max-h-none overflow-hidden">
-               <div className="p-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 hidden md:block">Kategoriler</div>
+               <div className="p-4 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-600 hidden md:block">Categories</div>
                <ScrollArea className="flex-1">
                   <div className="p-2 flex md:block overflow-x-auto md:overflow-x-visible space-x-2 md:space-x-0 md:space-y-1">
                      {isLoading && categories.length === 0 ? (
@@ -257,11 +368,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                         categories.map((cat) => (
                           <button
                             key={cat.category_id}
-                            onClick={() => setSelectedCategory(cat.category_id)}
+                            onClick={() => onCategoryClick(cat.category_id)}
                             className={`whitespace-nowrap md:whitespace-normal px-4 md:px-3 py-2 md:py-2.5 rounded-lg text-xs md:text-sm transition-all flex items-center justify-between group flex-shrink-0 ${selectedCategory === cat.category_id ? 'bg-orange-600/10 text-orange-500 font-bold border border-orange-500/20' : 'text-zinc-500 hover:text-white hover:bg-zinc-800/30'}`}
                           >
                             <span className="truncate max-w-[120px] md:max-w-none">{cat.category_name}</span>
-                            <ChevronRight className={`hidden md:block h-3.5 w-3.5 transition-transform ${selectedCategory === cat.category_id ? 'translate-x-0 opacity-100' : '-translate-x-2 opacity-0 group-hover:opacity-50'}`} />
+                            <div className="flex items-center gap-2">
+                               {lockedCategories.includes(cat.category_id) && <Lock className="h-3 w-3 text-orange-500" />}
+                               <ChevronRight className={`hidden md:block h-3.5 w-3.5 transition-transform ${selectedCategory === cat.category_id ? 'translate-x-0 opacity-100' : '-translate-x-2 opacity-0 group-hover:opacity-50'}`} />
+                            </div>
                           </button>
                         ))
                      )}
@@ -291,8 +405,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                      )}
                   </div>
                </ScrollArea>
-
-               {/* Mobile Overlay for Sidebar */}
                {isMobileMenuOpen && (
                  <div 
                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden" 
@@ -300,6 +412,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                  />
                )}
             </div>
+           </>
+          )}
          </div>
 
          {/* Player Overlay */}
@@ -319,6 +433,60 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
               </motion.div>
             )}
          </AnimatePresence>
+          {/* Dialogs for PIN */}
+          <Dialog open={showPinSetup} onOpenChange={setShowPinSetup}>
+            <DialogContent className="bg-zinc-900 border-zinc-800 text-white sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Set Parental PIN</DialogTitle>
+                <DialogDescription className="text-zinc-400">
+                  Enter a 4-digit PIN to secure your locked categories.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-6">
+                <Label htmlFor="pin" className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2 block">4-Digit PIN</Label>
+                <Input
+                  id="pin"
+                  type="password"
+                  maxLength={4}
+                  value={tempPin}
+                  onChange={(e) => setTempPin(e.target.value.replace(/\D/g, ''))}
+                  className="bg-zinc-950 border-zinc-800 text-2xl tracking-[1em] text-center h-14"
+                  placeholder="0000"
+                />
+              </div>
+              <DialogFooter>
+                <Button onClick={handleSavePin} className="w-full bg-orange-600 hover:bg-orange-700">Save PIN</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showPinVerify} onOpenChange={setShowPinVerify}>
+            <DialogContent className="bg-zinc-900 border-zinc-800 text-white sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Enter Parental PIN</DialogTitle>
+                <DialogDescription className="text-zinc-400">
+                  This content is protected. Please enter your PIN to continue.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-6">
+                <Label htmlFor="verify-pin" className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2 block">4-Digit PIN</Label>
+                <Input
+                  id="verify-pin"
+                  type="password"
+                  maxLength={4}
+                  value={tempPin}
+                  onChange={(e) => setTempPin(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyPin()}
+                  className="bg-zinc-950 border-zinc-800 text-2xl tracking-[1em] text-center h-14"
+                  placeholder="0000"
+                  autoFocus
+                />
+              </div>
+              <DialogFooter>
+                <Button onClick={handleVerifyPin} className="w-full bg-orange-600 hover:bg-orange-700">Unlock</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
       </main>
     </div>
   );

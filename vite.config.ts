@@ -24,14 +24,6 @@ export default defineConfig(({ mode }) => {
       minify: 'esbuild',
       cssMinify: true,
       sourcemap: false,
-      chunkSizeWarningLimit: 1000,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            'vendor': ['react', 'react-dom', 'framer-motion', 'hls.js'],
-          }
-        }
-      }
     },
     server: {
       host: '0.0.0.0',

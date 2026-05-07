@@ -72,7 +72,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isLoading, error }) => {
             <Tv className="h-10 w-10 text-orange-500" />
           </div>
           <h1 className="text-4xl font-bold text-white tracking-tighter mb-2">XStream Pro</h1>
-          <p className="text-zinc-400 text-sm">Gelişmiş IPTV Deneyimi</p>
+          <p className="text-zinc-400 text-sm">Advanced IPTV Experience</p>
         </div>
 
         <Card className="bg-zinc-900/40 border-zinc-800 backdrop-blur-2xl shadow-2xl border-t-zinc-700/30">
@@ -82,29 +82,29 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isLoading, error }) => {
                 onClick={() => setLoginMode('xtream')}
                 className={`flex-1 py-2 px-4 rounded-md text-xs font-bold transition-all ${loginMode === 'xtream' ? 'bg-orange-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
-                Xtream Giriş
+                Xtream Login
               </button>
               <button
                 onClick={() => setLoginMode('url')}
                 className={`flex-1 py-2 px-4 rounded-md text-xs font-bold transition-all ${loginMode === 'url' ? 'bg-orange-600 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
               >
-                M3U / URL Giriş
+                M3U / URL Login
               </button>
             </div>
             <CardTitle className="text-xl text-white">
-              {loginMode === 'xtream' ? 'Hesap Bilgileri' : 'URL İle Giriş'}
+              {loginMode === 'xtream' ? 'Account Details' : 'Login via URL'}
             </CardTitle>
             <CardDescription className="text-zinc-500">
               {loginMode === 'xtream' 
-                ? 'Sana verilen panel bilgilerini eksiksiz gir.' 
-                : 'M3U linkini veya tam URL\'yi buraya yapıştır.'}
+                ? 'Enter the panel details provided to you.' 
+                : 'Paste the M3U link or full URL here.'}
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="url" className="text-xs font-bold uppercase tracking-wider text-zinc-500">
-                  {loginMode === 'xtream' ? 'Sunucu Adresi (URL)' : 'M3U / Tam URL'}
+                  {loginMode === 'xtream' ? 'Server Address (URL)' : 'M3U / Full URL'}
                 </Label>
                 <div className="relative group">
                    <div className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-zinc-900 border border-zinc-800 group-focus-within:border-orange-500/50 transition-colors">
@@ -125,13 +125,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isLoading, error }) => {
               {loginMode === 'xtream' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username" className="text-xs font-bold uppercase tracking-wider text-zinc-500">Kullanıcı Adı</Label>
+                    <Label htmlFor="username" className="text-xs font-bold uppercase tracking-wider text-zinc-500">Username</Label>
                     <div className="relative group">
                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
                        <Input
                         id="username"
                         type="text"
-                        placeholder="Zorunlu Değil"
+                        placeholder="Optional"
                         value={creds.username}
                         onChange={(e) => setCreds({ ...creds, username: e.target.value })}
                         className="bg-zinc-950/50 border-zinc-800 text-white pl-10 h-11 focus:border-orange-500/50 focus:ring-0"
@@ -140,7 +140,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isLoading, error }) => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-zinc-500">Şifre</Label>
+                    <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-zinc-500">Password</Label>
                     <div className="relative group">
                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
                        <Input
@@ -176,12 +176,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isLoading, error }) => {
                 {isLoading ? (
                   <div className="flex items-center gap-3">
                     <div className="h-5 w-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                    <span>Bağlanılıyor...</span>
+                    <span>Connecting...</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 relative z-10 transition-transform group-hover:translate-x-1">
                     <Zap className="h-5 w-5 fill-current text-white" />
-                    <span>Yayınları Getir</span>
+                    <span>Get Content</span>
                   </div>
                 )}
                 <div className="absolute inset-x-0 bottom-0 h-1 w-full bg-white/10 origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500" />
@@ -192,9 +192,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isLoading, error }) => {
 
         <div className="mt-8 grid grid-cols-3 gap-3 sm:gap-4">
            {[
-             { icon: <Shield className="h-5 w-5" />, text: "Güvenli" },
-             { icon: <Zap className="h-5 w-5" />, text: "Hızlı" },
-             { icon: <Lock className="h-5 w-5" />, text: "Korumalı" }
+             { icon: <Shield className="h-5 w-5" />, text: "Secure" },
+             { icon: <Zap className="h-5 w-5" />, text: "Fast" },
+             { icon: <Lock className="h-5 w-5" />, text: "Protected" }
            ].map((item, idx) => (
              <motion.div 
                 key={idx} 
