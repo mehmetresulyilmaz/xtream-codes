@@ -70,6 +70,11 @@ export class XtreamClient {
     return this.fetchFromProxy('get_series', params);
   }
 
+  async getSeriesInfo(seriesId: number): Promise<any> {
+    const params: Record<string, string> = { series_id: seriesId.toString() };
+    return this.fetchFromProxy('get_series_info', params);
+  }
+
   getStreamUrl(streamId: number, type: 'live' | 'movie' | 'series', extension: string = 'm3u8'): string {
     const baseUrl = this.creds.url.endsWith('/') ? this.creds.url : `${this.creds.url}/`;
     

@@ -21,68 +21,81 @@ interface DashboardProps {
 
 type TabType = 'live' | 'movie' | 'series' | 'settings';
 
-const StreamItem = ({ stream, viewMode, onClick }: { stream: any, viewMode: 'grid' | 'list', onClick: (s: any) => void }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    whileHover={{ y: -5, scale: 1.02 }}
-    transition={{ duration: 0.3 }}
-    className="cursor-pointer group"
-    onClick={() => onClick(stream)}
-  >
-    {viewMode === 'grid' ? (
-      <div className="aspect-video relative rounded-2xl overflow-hidden bg-zinc-900/40 border border-white/5 shadow-2xl transition-all group-hover:border-orange-500/50 group-hover:shadow-orange-600/10">
-        <img 
-          src={stream.stream_icon || stream.cover || 'https://via.placeholder.com/400x225?text=No+Image'} 
-          alt={stream.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-          referrerPolicy="no-referrer"
-          onError={(e) => {
-            (e.target as any).src = 'https://via.placeholder.com/400x225?text=No+Image';
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
-        
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-75 group-hover:scale-100">
-            <div className="p-4 bg-orange-600 rounded-full shadow-[0_0_30px_rgba(234,88,12,0.4)]">
-              <Play className="h-8 w-8 fill-current text-white" />
-            </div>
-        </div>
+interface SeriesInfo {
+  seasons: any[];
+  episodes: Record<string, any[]>;
+  info: any;
+}
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 transform translate-y-1 group-hover:translate-y-0 transition-transform">
-            <p className="text-sm font-black truncate text-white tracking-tight drop-shadow-md">{stream.name}</p>
-            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              {stream.stream_type || 'Watch Now'}
-            </p>
+const StreamItem = ({ stream, viewMode, onClick, type }: { stream: any, viewMode: 'grid' | 'list', onClick: (s: any) => void, type: TabType }) => {
+  const isPoster = type === 'movie' || type === 'series';
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -5, scale: 1.02 }}
+      transition={{ duration: 0.3 }}
+      className="cursor-pointer group"
+      onClick={() => onClick(stream)}
+    >
+      {viewMode === 'grid' ? (
+        <div className={`relative rounded-3xl overflow-hidden bg-white/5 border border-white/5 shadow-2xl transition-all group-hover:border-orange-500/50 group-hover:shadow-orange-600/20 ${isPoster ? 'aspect-[2/3]' : 'aspect-video'}`}>
+          <img 
+            src={stream.stream_icon || stream.cover || 'https://via.placeholder.com/400x600?text=Icerik+Yok'} 
+            alt={stream.name}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              (e.target as any).src = 'https://via.placeholder.com/400x600?text=Icerik+Yok';
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80 group-hover:opacity-40 transition-opacity" />
+          
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-75 group-hover:scale-100">
+              <div className="p-5 bg-orange-600 rounded-full shadow-[0_0_30px_rgba(234,88,12,0.6)] backdrop-blur-md">
+                <Play className="h-10 w-10 fill-current text-white" />
+              </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0 p-5 transform translate-y-1 group-hover:translate-y-0 transition-transform">
+              <p className="text-base font-black truncate text-white tracking-tight drop-shadow-lg">{stream.name}</p>
+              <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-[10px] text-zinc-300 font-bold uppercase tracking-widest bg-white/10 px-2 py-0.5 rounded-full backdrop-blur-md">
+                  {stream.stream_type || (type === 'series' ? 'Series' : 'Watch Now')}
+                </span>
+                {stream.rating && <span className="text-xs text-orange-400 font-black">★ {stream.rating}</span>}
+              </div>
+          </div>
         </div>
-      </div>
-    ) : (
-      <div className="flex items-center gap-5 p-3.5 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 hover:border-orange-500/30 transition-all group relative overflow-hidden backdrop-blur-sm">
-          <div className="h-14 w-24 rounded-xl overflow-hidden bg-zinc-950 flex-shrink-0 border border-white/5 relative">
-            <img 
-              src={stream.stream_icon || stream.cover || 'https://via.placeholder.com/120x68?text=...'} 
-              className="w-full h-full object-cover transition-transform group-hover:scale-110"
-              referrerPolicy="no-referrer"
-              onError={(e) => (e.target as any).src = 'https://via.placeholder.com/120x68?text=...'}
-            />
-            <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-black truncate group-hover:text-orange-500 transition-colors tracking-tight">{stream.name}</p>
-            <div className="flex items-center gap-3 mt-1.5">
-               <span className="text-[10px] text-zinc-500 uppercase font-black tracking-widest bg-white/5 px-2 py-0.5 rounded-md border border-white/5">{stream.stream_type || 'Stream'}</span>
-               {stream.rating && <span className="text-[10px] text-orange-500 font-black">★ {stream.rating}</span>}
+      ) : (
+        <div className="flex items-center gap-6 p-4 bg-white/5 border border-white/5 rounded-3xl hover:bg-white/10 hover:border-orange-500/30 transition-all group relative overflow-hidden backdrop-blur-xl shadow-xl">
+            <div className={`h-16 rounded-2xl overflow-hidden bg-zinc-950 flex-shrink-0 border border-white/5 relative ${isPoster ? 'w-12' : 'w-24'}`}>
+              <img 
+                src={stream.stream_icon || stream.cover || 'https://via.placeholder.com/120x68?text=...'} 
+                className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                referrerPolicy="no-referrer"
+                onError={(e) => (e.target as any).src = 'https://via.placeholder.com/120x68?text=...'}
+              />
+              <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors" />
             </div>
-          </div>
-          <div className="pr-2">
-            <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-all bg-orange-600 text-white rounded-xl h-10 w-10 shadow-lg shadow-orange-600/20 translate-x-4 group-hover:translate-x-0">
-              <Play className="h-4 w-4 fill-current" />
-            </Button>
-          </div>
-      </div>
-    )}
-  </motion.div>
-);
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-black truncate group-hover:text-orange-500 transition-colors tracking-tight">{stream.name}</p>
+              <div className="flex items-center gap-4 mt-1.5">
+                 <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">{stream.stream_type || type}</span>
+                 {stream.rating && <span className="text-[11px] text-orange-500 font-black flex items-center gap-1"><Library className="h-3 w-3" /> {stream.rating}</span>}
+              </div>
+            </div>
+            <div className="pr-2">
+              <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-all bg-orange-600 text-white rounded-2xl h-12 w-12 shadow-[0_8px_20px_rgba(234,88,12,0.4)] translate-x-4 group-hover:translate-x-0">
+                <Play className="h-5 w-5 fill-current" />
+              </Button>
+            </div>
+        </div>
+      )}
+    </motion.div>
+  );
+};
 
 export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabType>('live');
@@ -92,6 +105,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentStream, setCurrentStream] = useState<{ url: string; title: string } | null>(null);
+  const [selectedSeries, setSelectedSeries] = useState<{ series: Series, info: SeriesInfo | null } | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [pin, setPin] = useState(localStorage.getItem('xstream_pin') || '');
@@ -203,33 +217,54 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
 
   const paginatedStreams = filteredStreams.slice(0, displayLimit);
 
-  const handleStreamClick = (stream: any) => {
-    const streamId = stream.stream_id || stream.series_id;
+  const handleStreamClick = async (stream: any) => {
+    if (activeTab === 'series') {
+      setIsLoading(true);
+      try {
+        const info = await client.getSeriesInfo(stream.series_id);
+        setSelectedSeries({ series: stream, info });
+      } catch (err) {
+        toast.error('Failed to load series details');
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    const streamId = stream.stream_id;
     const type = activeTab;
     if (type === 'settings') return;
-    const ext = stream.container_extension || 'm3u8';
+    const ext = stream.container_extension || (type === 'live' ? 'ts' : 'mp4');
     const url = client.getStreamUrl(streamId, type as 'live' | 'movie' | 'series', ext);
     setCurrentStream({ url, title: stream.name });
   };
 
+  const handleEpisodeClick = (episode: any) => {
+    const streamId = episode.id || episode.stream_id;
+    const ext = episode.container_extension || 'mp4';
+    const url = client.getStreamUrl(streamId, 'series', ext);
+    setCurrentStream({ url, title: episode.title || episode.name });
+  };
+
   return (
-    <div className="flex h-screen bg-[#050505] text-white overflow-hidden relative font-sans">
+    <div className="flex h-screen bg-[#020203] text-white overflow-hidden relative font-sans">
       {/* Atmosphere Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] right-[-5%] w-[50%] h-[50%] bg-orange-600/10 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] left-[-5%] w-[50%] h-[50%] bg-blue-600/5 blur-[120px] rounded-full" />
+        <div className="absolute top-[-10%] right-[-5%] w-[60%] h-[60%] bg-orange-600/15 blur-[160px] rounded-full animate-pulse" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[70%] h-[70%] bg-indigo-600/10 blur-[180px] rounded-full" />
+        <div className="absolute top-[20%] left-[20%] w-[30%] h-[30%] bg-orange-500/5 blur-[120px] rounded-full" />
       </div>
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-20 md:w-72 border-r border-white/5 flex flex-col bg-black/40 backdrop-blur-3xl transition-transform md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="p-8 hidden md:block">
-           <div className="flex items-center gap-4 group cursor-default">
-              <div className="p-2.5 bg-gradient-to-br from-orange-400 to-orange-700 rounded-2xl shadow-[0_8px_20px_rgba(234,88,12,0.3)] border border-white/10 group-hover:scale-110 transition-transform duration-500">
-                 <Tv2 className="h-6 w-6 text-white" />
+      <aside className={`fixed inset-y-0 left-0 z-40 w-24 md:w-80 border-r border-white/5 flex flex-col bg-black/40 backdrop-blur-3xl transition-all duration-500 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        <div className="p-10 hidden md:block">
+           <div className="flex items-center gap-5 group cursor-default">
+              <div className="h-14 w-14 bg-gradient-to-br from-orange-400 via-orange-600 to-orange-800 rounded-[1.5rem] flex items-center justify-center shadow-[0_12px_32px_rgba(234,88,12,0.4)] border border-white/20 group-hover:rotate-6 group-hover:scale-110 transition-all duration-500">
+                 <Tv2 className="h-8 w-8 text-white drop-shadow-lg" />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-xl font-black tracking-tighter leading-none text-white">XSTREAM</h1>
-                <span className="text-[10px] uppercase tracking-[0.3em] text-orange-500 font-bold">Premium Pro</span>
+                <h1 className="text-2xl font-black italic tracking-tighter leading-none text-white drop-shadow-2xl">XSTREAM</h1>
+                <span className="text-[10px] uppercase tracking-[0.4em] text-orange-500 font-black mt-1">PRO CINEMA</span>
               </div>
            </div>
         </div>
@@ -292,23 +327,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col relative overflow-hidden w-full z-10">
          {/* Top Header */}
-         <header className="h-16 md:h-20 border-b border-white/5 flex items-center justify-between px-4 md:px-8 bg-black/20 backdrop-blur-3xl z-30">
-            <div className="flex items-center gap-4 flex-1">
+         <header className="h-20 md:h-28 border-b border-white/5 flex items-center justify-between px-6 md:px-12 bg-black/10 backdrop-blur-3xl z-30 transition-all">
+            <div className="flex items-center gap-6 flex-1">
                <Button 
                  variant="ghost" 
                  size="icon" 
-                 className="md:hidden text-zinc-400"
+                 className="md:hidden text-zinc-400 bg-white/5 h-12 w-12 rounded-2xl"
                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                >
                  <Menu className="h-6 w-6" />
                </Button>
                
-               <div className="flex-1 max-w-xl">
+               <div className="flex-1 max-w-2xl">
                   <div className="relative group">
-                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 group-focus-within:text-orange-500 transition-colors" />
+                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500 group-focus-within:text-orange-500 transition-all" />
                      <Input 
-                       placeholder="İçerik ara..." 
-                       className="bg-zinc-900/40 border-zinc-800/50 pl-10 h-10 md:h-11 focus:border-orange-500/50 focus:ring-4 focus:ring-orange-500/5 transition-all text-sm"
+                       placeholder="Ne izlemek istersin? (Kanal, Film veya Dizi)" 
+                       className="bg-white/5 border-white/5 pl-14 h-14 md:h-16 rounded-[1.5rem] focus:bg-white/10 focus:ring-orange-600/20 transition-all text-base font-medium placeholder:text-zinc-600"
                        value={searchQuery}
                        onChange={(e) => setSearchQuery(e.target.value)}
                      />
@@ -316,26 +351,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                </div>
             </div>
             
-            <div className="flex items-center gap-1 md:gap-2 ml-4">
-                <div className="hidden sm:flex items-center gap-1 bg-zinc-900/50 p-1 rounded-lg border border-zinc-800/50">
+            <div className="flex items-center gap-4 ml-8">
+                <div className="hidden lg:flex items-center gap-1.5 bg-white/5 p-1.5 rounded-2xl border border-white/5 backdrop-blur-md">
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => setViewMode('grid')}
-                    className={`h-8 w-8 ${viewMode === 'grid' ? 'bg-orange-600 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    className={`h-10 w-10 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
                   >
-                    <LayoutGrid className="h-4 w-4" />
+                    <LayoutGrid className="h-5 w-5" />
                   </Button>
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => setViewMode('list')}
-                    className={`h-8 w-8 ${viewMode === 'list' ? 'bg-orange-600 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-300'}`}
+                    className={`h-10 w-10 rounded-xl transition-all ${viewMode === 'list' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
                   >
-                    <List className="h-4 w-4" />
+                    <List className="h-5 w-5" />
                   </Button>
                 </div>
-                <div className="md:hidden h-8 w-8 rounded-full bg-orange-600 flex items-center justify-center text-[10px] font-bold">
+                <div className="md:hidden h-10 w-10 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-700 flex items-center justify-center text-xs font-black shadow-lg shadow-orange-600/30">
                     {authData.user_info.username.charAt(0).toUpperCase()}
                 </div>
             </div>
@@ -403,20 +438,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
               </div>
             ) : (
               <>
-            <aside className="w-full md:w-72 border-b md:border-b-0 md:border-r border-white/5 flex flex-col bg-white/5 backdrop-blur-3xl h-[80px] md:h-full overflow-hidden shrink-0">
-               <div className="px-6 py-5 flex items-center justify-between border-b border-white/5 hidden md:flex">
-                  <div className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Kategoriler</div>
-                  <div className="flex gap-1.5">
-                     <div className="h-1.5 w-1.5 rounded-full bg-orange-600 animate-pulse shadow-[0_0_8px_rgba(234,88,12,0.6)]" />
-                     <div className="h-1.5 w-1.5 rounded-full bg-orange-600/30" />
+            <aside className="w-full md:w-80 border-b md:border-b-0 md:border-r border-white/5 flex flex-col bg-white/5 backdrop-blur-3xl h-[80px] md:h-full overflow-hidden shrink-0 transition-all duration-500">
+               <div className="px-8 py-6 flex items-center justify-between border-b border-white/5 hidden md:flex bg-black/10">
+                  <div className="text-[11px] font-black uppercase tracking-[0.4em] text-zinc-500">Kategoriler</div>
+                  <div className="flex gap-2">
+                     <div className="h-1.5 w-1.5 rounded-full bg-orange-600 animate-pulse shadow-[0_0_8px_rgba(234,88,12,0.8)]" />
+                     <div className="h-1.5 w-1.5 rounded-full bg-orange-600/20" />
                   </div>
                </div>
                <ScrollArea className="flex-1">
-                  <div className="p-4 flex md:block overflow-x-auto md:overflow-x-visible items-center gap-3 md:space-y-2 h-full">
+                  <div className="p-4 flex md:block overflow-x-auto md:overflow-x-visible items-center gap-3 md:space-y-2 h-full custom-scrollbar">
                      {isLoading && categories.length === 0 ? (
                         Array(12).fill(0).map((_, i) => (
-                           <div key={i} className="px-4 py-3">
-                              <Skeleton className="h-4 w-full bg-white/5 rounded-lg" />
+                           <div key={i} className="px-6 py-4">
+                              <Skeleton className="h-5 w-full bg-white/5 rounded-xl" />
                            </div>
                         ))
                      ) : (
@@ -424,15 +459,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                           <button
                             key={cat.category_id}
                             onClick={() => onCategoryClick(cat.category_id)}
-                            className={`whitespace-nowrap md:whitespace-normal px-5 md:px-5 py-4 md:py-4 rounded-2xl text-xs md:text-sm transition-all flex items-center justify-between group flex-shrink-0 relative overflow-hidden ${selectedCategory === cat.category_id ? 'text-white font-black' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                            className={`whitespace-nowrap md:whitespace-normal px-6 py-5 rounded-[1.5rem] text-sm transition-all flex items-center justify-between group flex-shrink-0 relative overflow-hidden ${selectedCategory === cat.category_id ? 'text-white font-black' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
                           >
-                           <span className="relative z-10 truncate tracking-tight">{cat.category_name}</span>
-                           <div className="flex items-center gap-2 relative z-10 ml-3">
-                              {lockedCategories.includes(cat.category_id) && <Lock className={`h-4 w-4 ${selectedCategory === cat.category_id ? 'text-white' : 'text-orange-600'}`} />}
-                              <ChevronRight className={`hidden md:block h-4 w-4 transition-all duration-300 ${selectedCategory === cat.category_id ? 'translate-x-0 opacity-100' : '-translate-x-4 opacity-0 group-hover:opacity-100'}`} />
+                           <span className="relative z-10 truncate tracking-tight uppercase tracking-wider text-[11px] font-black">{cat.category_name}</span>
+                           <div className="flex items-center gap-3 relative z-10 ml-4">
+                              {lockedCategories.includes(cat.category_id) && <Lock className={`h-4 w-4 ${selectedCategory === cat.category_id ? 'text-white' : 'text-orange-600/60'}`} />}
+                              <ChevronRight className={`hidden md:block h-4 w-4 transition-all duration-500 ${selectedCategory === cat.category_id ? 'translate-x-0 opacity-100' : '-translate-x-6 opacity-0 group-hover:opacity-100 group-hover:translate-x-0'}`} />
                            </div>
                            {selectedCategory === cat.category_id && (
-                              <motion.div layoutId="activeCat" className="absolute inset-0 bg-orange-600 z-0 shadow-lg shadow-orange-600/30" />
+                              <motion.div layoutId="activeCat" className="absolute inset-0 bg-orange-600 z-0 shadow-2xl shadow-orange-600/40" />
                            )}
                           </button>
                         ))
@@ -457,6 +492,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                             key={(stream as any).stream_id || (stream as any).series_id} 
                             stream={stream} 
                             viewMode={viewMode} 
+                            type={activeTab}
                             onClick={handleStreamClick} 
                          />
                        ))
@@ -557,6 +593,90 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
               <DialogFooter>
                 <Button onClick={handleVerifyPin} className="w-full bg-orange-600 hover:bg-orange-700">Kilidi Aç</Button>
               </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Series Details Dialog */}
+          <Dialog open={!!selectedSeries} onOpenChange={() => setSelectedSeries(null)}>
+            <DialogContent className="bg-[#0a0a0c] border-white/5 text-white max-w-5xl h-[85vh] p-0 overflow-hidden flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-[3rem]">
+               {selectedSeries && (
+                 <>
+                   {/* Header with Backdrop */}
+                   <div className="relative h-80 flex-shrink-0">
+                      <div className="absolute inset-0">
+                        <img 
+                          src={selectedSeries.info?.info?.backdrop_path?.[0] || selectedSeries.series.cover} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/40 to-transparent" />
+                        <div className="absolute inset-0 backdrop-blur-[4px]" />
+                        <div className="absolute inset-0 bg-black/20" />
+                      </div>
+                      
+                      <div className="absolute bottom-0 left-0 right-0 p-12 flex gap-10 items-end">
+                         <div className="h-64 w-44 rounded-[2rem] overflow-hidden shadow-2xl border border-white/10 transform -translate-y-4 hidden sm:block">
+                            <img src={selectedSeries.series.cover} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                         </div>
+                         <div className="flex-1 flex flex-col justify-end">
+                            <div className="flex items-center gap-3 mb-4">
+                               <div className="px-3 py-1 bg-orange-600 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-orange-600/20">
+                                  {selectedSeries.info?.info?.genre?.split(',')?.[0] || 'Series'}
+                               </div>
+                               <div className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-zinc-300 border border-white/10 backdrop-blur-md">
+                                  {selectedSeries.info?.info?.releaseDate || '2024'}
+                               </div>
+                            </div>
+                            <h2 className="text-5xl font-black tracking-tighter leading-[0.9] mb-4 text-white drop-shadow-2xl">{selectedSeries.series.name}</h2>
+                            <div className="flex items-center gap-6 text-xs font-black text-zinc-400 uppercase tracking-[0.2em] mt-2">
+                               <span className="flex items-center gap-2 text-orange-500">
+                                 <Library className="h-4 w-4" /> {selectedSeries.series.rating || '8.4'}
+                               </span>
+                               <span className="opacity-20">|</span>
+                               <span>{Object.keys(selectedSeries.info?.episodes || {}).length} Sezon</span>
+                               <span className="opacity-20">|</span>
+                               <span className="text-zinc-500">{selectedSeries.info?.info?.cast?.split(',')?.[0]}</span>
+                            </div>
+                         </div>
+                      </div>
+                   </div>
+
+                   {/* Episodes List */}
+                   <div className="flex-1 overflow-hidden flex flex-col p-12 pt-6">
+                      <ScrollArea className="flex-1 pr-6">
+                         <div className="space-y-12">
+                            {Object.entries(selectedSeries.info?.episodes || {}).map(([seasonNum, episodes]: [string, any]) => (
+                               <div key={seasonNum}>
+                                  <div className="flex items-center gap-4 mb-8">
+                                     <h3 className="text-sm font-black text-orange-500 uppercase tracking-[0.5em]">SEZON {seasonNum}</h3>
+                                     <div className="h-px flex-1 bg-gradient-to-r from-orange-500/20 to-transparent" />
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                     {episodes.map((ep: any) => (
+                                        <button 
+                                          key={ep.id}
+                                          onClick={() => handleEpisodeClick(ep)}
+                                          className="flex items-center gap-5 p-4 rounded-[1.5rem] bg-white/5 border border-white/5 hover:bg-white/10 hover:border-orange-500/30 transition-all group text-left relative overflow-hidden"
+                                        >
+                                           <div className="h-12 w-12 rounded-2xl bg-orange-600/10 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600 transition-all shadow-inner">
+                                              <Play className="h-5 w-5 fill-current text-orange-500 group-hover:text-white" />
+                                           </div>
+                                           <div className="flex-1 min-w-0">
+                                              <p className="font-black truncate group-hover:text-orange-500 transition-colors uppercase tracking-tight text-sm">Bölüm {ep.episode_num || ep.id}: {ep.title}</p>
+                                              <p className="text-[10px] text-zinc-500 group-hover:text-zinc-300 font-bold truncate mt-1 uppercase tracking-wider">
+                                                {ep.info?.duration || '45 dk'} • {ep.info?.plot?.slice(0, 50) || 'Bölüm detayları bulunmamaktadır.'}...
+                                              </p>
+                                           </div>
+                                        </button>
+                                     ))}
+                                  </div>
+                               </div>
+                            ))}
+                         </div>
+                      </ScrollArea>
+                   </div>
+                 </>
+               )}
             </DialogContent>
           </Dialog>
       </main>
