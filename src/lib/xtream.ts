@@ -75,7 +75,17 @@ export class XtreamClient {
     return this.fetchFromProxy('get_series_info', params);
   }
 
-  getStreamUrl(streamId: number, type: 'live' | 'movie' | 'series', extension: string = 'm3u8'): string {
+  async getShortEPG(streamId: number): Promise<any> {
+    const params: Record<string, string> = { stream_id: streamId.toString() };
+    return this.fetchFromProxy('get_short_epg', params);
+  }
+
+  async getLiveStreamEPG(streamId: number): Promise<any> {
+    const params: Record<string, string> = { stream_id: streamId.toString() };
+    return this.fetchFromProxy('get_simple_data_table', params);
+  }
+
+  getStreamUrl(streamId: number, type: 'live' | 'movie' | 'series', extension: string = 'ts'): string {
     const baseUrl = this.creds.url.endsWith('/') ? this.creds.url : `${this.creds.url}/`;
     
     // Some servers use different paths

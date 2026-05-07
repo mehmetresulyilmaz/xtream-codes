@@ -27,8 +27,56 @@ interface SeriesInfo {
   info: any;
 }
 
-const StreamItem = ({ stream, viewMode, onClick, type }: { stream: any, viewMode: 'grid' | 'list', onClick: (s: any) => void, type: TabType }) => {
+const StreamItem = ({ 
+  stream, 
+  viewMode, 
+  onClick, 
+  type, 
+  epgInfo, 
+  onLoadEPG 
+}: { 
+  stream: any, 
+  viewMode: 'grid' | 'list', 
+  onClick: (s: any) => void, 
+  type: TabType,
+  epgInfo?: any,
+  onLoadEPG?: (id: number) => void
+}) => {
   const isPoster = type === 'movie' || type === 'series';
+
+  useEffect(() => {
+    if (type === 'live' && stream.stream_id && onLoadEPG && !epgInfo) {
+      onLoadEPG(stream.stream_id);
+    }
+  }, [stream.stream_id, type, onLoadEPG, epgInfo]);
+  
+  const safeDecode = (str: string) => {
+    try {
+      return atob(str);
+    } catch (e) {
+      return str;
+    }
+  };
+  
+  const renderEPG = () => {
+    if (!epgInfo) return null;
+    
+    const title = safeDecode(epgInfo.title || '');
+    const startTime = new Date(epgInfo.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    return (
+      <div className="mt-1 flex flex-col gap-0.5">
+        <p className="text-[11px] font-bold text-orange-600 truncate leading-tight">
+          {startTime} - {title || 'Bilinmeyen Program'}
+        </p>
+        {epgInfo.description && (
+          <p className="text-[9px] text-slate-400 truncate opacity-60">
+            {safeDecode(epgInfo.description).substring(0, 50)}...
+          </p>
+        )}
+      </div>
+    );
+  };
   
   return (
     <motion.div
@@ -40,7 +88,7 @@ const StreamItem = ({ stream, viewMode, onClick, type }: { stream: any, viewMode
       onClick={() => onClick(stream)}
     >
       {viewMode === 'grid' ? (
-        <div className={`relative rounded-3xl overflow-hidden bg-white/5 border border-white/5 shadow-2xl transition-all group-hover:border-orange-500/50 group-hover:shadow-orange-600/20 ${isPoster ? 'aspect-[2/3]' : 'aspect-video'}`}>
+        <div className={`relative rounded-3xl overflow-hidden bg-white border border-slate-100 shadow-sm transition-all group-hover:border-orange-500/50 group-hover:shadow-orange-200/50 ${isPoster ? 'aspect-[2/3]' : 'aspect-video'}`}>
           <img 
             src={stream.stream_icon || stream.cover || 'https://via.placeholder.com/400x600?text=Icerik+Yok'} 
             alt={stream.name}
@@ -50,44 +98,45 @@ const StreamItem = ({ stream, viewMode, onClick, type }: { stream: any, viewMode
               (e.target as any).src = 'https://via.placeholder.com/400x600?text=Icerik+Yok';
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-80 group-hover:opacity-40 transition-opacity" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 via-transparent to-transparent opacity-60 group-hover:opacity-20 transition-opacity" />
           
           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-75 group-hover:scale-100">
-              <div className="p-5 bg-orange-600 rounded-full shadow-[0_0_30px_rgba(234,88,12,0.6)] backdrop-blur-md">
-                <Play className="h-10 w-10 fill-current text-white" />
+              <div className="p-5 bg-white/90 rounded-full shadow-2xl backdrop-blur-md">
+                <Play className="h-10 w-10 fill-current text-orange-600" />
               </div>
           </div>
 
-          <div className="absolute bottom-0 left-0 right-0 p-5 transform translate-y-1 group-hover:translate-y-0 transition-transform">
-              <p className="text-base font-black truncate text-white tracking-tight drop-shadow-lg">{stream.name}</p>
+          <div className="absolute bottom-0 left-0 right-0 p-5 transform translate-y-1 group-hover:translate-y-0 transition-transform bg-gradient-to-t from-white via-white/80 to-transparent">
+              <p className="text-base font-black truncate text-slate-800 tracking-tight">{stream.name}</p>
+              {type === 'live' && renderEPG()}
               <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-[10px] text-zinc-300 font-bold uppercase tracking-widest bg-white/10 px-2 py-0.5 rounded-full backdrop-blur-md">
-                  {stream.stream_type || (type === 'series' ? 'Series' : 'Watch Now')}
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-full">
+                  {stream.stream_type || (type === 'series' ? 'Series' : 'Hemen İzle')}
                 </span>
-                {stream.rating && <span className="text-xs text-orange-400 font-black">★ {stream.rating}</span>}
+                {stream.rating && <span className="text-xs text-orange-600 font-black">★ {stream.rating}</span>}
               </div>
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-6 p-4 bg-white/5 border border-white/5 rounded-3xl hover:bg-white/10 hover:border-orange-500/30 transition-all group relative overflow-hidden backdrop-blur-xl shadow-xl">
-            <div className={`h-16 rounded-2xl overflow-hidden bg-zinc-950 flex-shrink-0 border border-white/5 relative ${isPoster ? 'w-12' : 'w-24'}`}>
+        <div className="flex items-center gap-6 p-4 bg-white border border-slate-100 rounded-3xl hover:bg-slate-50 hover:border-orange-500/30 transition-all group relative overflow-hidden shadow-sm hover:shadow-md">
+            <div className={`h-16 rounded-2xl overflow-hidden bg-slate-100 flex-shrink-0 border border-slate-200/50 relative ${isPoster ? 'w-12' : 'w-24'}`}>
               <img 
                 src={stream.stream_icon || stream.cover || 'https://via.placeholder.com/120x68?text=...'} 
                 className="w-full h-full object-cover transition-transform group-hover:scale-110"
                 referrerPolicy="no-referrer"
                 onError={(e) => (e.target as any).src = 'https://via.placeholder.com/120x68?text=...'}
               />
-              <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-base font-black truncate group-hover:text-orange-500 transition-colors tracking-tight">{stream.name}</p>
+              <p className="text-base font-black truncate group-hover:text-orange-600 transition-colors tracking-tight text-slate-800">{stream.name}</p>
+              {type === 'live' && renderEPG()}
               <div className="flex items-center gap-4 mt-1.5">
-                 <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">{stream.stream_type || type}</span>
-                 {stream.rating && <span className="text-[11px] text-orange-500 font-black flex items-center gap-1"><Library className="h-3 w-3" /> {stream.rating}</span>}
+                 <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200/50">{stream.stream_type || type}</span>
+                 {stream.rating && <span className="text-[11px] text-orange-600 font-black flex items-center gap-1"><Library className="h-3 w-3" /> {stream.rating}</span>}
               </div>
             </div>
             <div className="pr-2">
-              <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-all bg-orange-600 text-white rounded-2xl h-12 w-12 shadow-[0_8px_20px_rgba(234,88,12,0.4)] translate-x-4 group-hover:translate-x-0">
+              <Button size="icon" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-all bg-orange-500 text-white rounded-2xl h-12 w-12 shadow-lg shadow-orange-500/20 translate-x-4 group-hover:translate-x-0">
                 <Play className="h-5 w-5 fill-current" />
               </Button>
             </div>
@@ -104,7 +153,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
   const [streams, setStreams] = useState<(Stream | Movie | Series)[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentStream, setCurrentStream] = useState<{ url: string; title: string } | null>(null);
+  const [currentStream, setCurrentStream] = useState<{ url: string; title: string; epg?: any } | null>(null);
   const [selectedSeries, setSelectedSeries] = useState<{ series: Series, info: SeriesInfo | null } | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -115,14 +164,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
   const [verifyCallback, setVerifyCallback] = useState<(() => void) | null>(null);
   const [lockedCategories, setLockedCategories] = useState<string[]>(JSON.parse(localStorage.getItem('xstream_locked_categories') || '[]'));
   const [displayLimit, setDisplayLimit] = useState(48);
+  const [epgData, setEpgData] = useState<Record<string, any>>({});
 
   useEffect(() => {
     localStorage.setItem('xstream_locked_categories', JSON.stringify(lockedCategories));
   }, [lockedCategories]);
 
+  const loadEPG = async (streamId: number) => {
+    if (epgData[streamId]) return;
+    try {
+      const data = await client.getShortEPG(streamId);
+      if (data && data.epg_listings && data.epg_listings.length > 0) {
+        // Find current program
+        const now = new Date();
+        const current = data.epg_listings.find((item: any) => {
+          const start = new Date(item.start);
+          const end = new Date(item.end);
+          return now >= start && now <= end;
+        }) || data.epg_listings[0];
+
+        setEpgData(prev => ({ ...prev, [streamId]: current }));
+      }
+    } catch (err) {
+      // Silently fail EPG
+    }
+  };
+
   useEffect(() => {
     // Reset limit when changing category or tab
     setDisplayLimit(48);
+    
+    // If live TV, we could try to load some EPG info for the first few items
+    // but better to load on demand or when visible
   }, [selectedCategory, activeTab]);
 
   const handleSavePin = () => {
@@ -195,7 +268,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
     }
   };
 
-  const loadStreams = async (type: TabType, catId?: string) => {
+   const loadStreams = async (type: TabType, catId?: string) => {
     if (type === 'settings') return;
     setIsLoading(true);
     try {
@@ -203,9 +276,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
       if (type === 'live') data = await client.getLiveStreams(catId);
       else if (type === 'movie') data = await client.getVodStreams(catId);
       else if (type === 'series') data = await client.getSeries(catId);
-      setStreams(data);
+      
+      console.log(`Loaded ${data.length} items for ${type} in category ${catId}`);
+      setStreams(Array.isArray(data) ? data : []);
+      setDisplayLimit(48); // Reset limit on category change
     } catch (err) {
-      toast.error('Failed to load streams');
+      console.error('Stream loading error:', err);
+      toast.error('İçerikler yüklenirken hata oluştu');
+      setStreams([]);
     } finally {
       setIsLoading(false);
     }
@@ -236,7 +314,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
     if (type === 'settings') return;
     const ext = stream.container_extension || (type === 'live' ? 'ts' : 'mp4');
     const url = client.getStreamUrl(streamId, type as 'live' | 'movie' | 'series', ext);
-    setCurrentStream({ url, title: stream.name });
+    setCurrentStream({ url, title: stream.name, epg: epgData[streamId] });
   };
 
   const handleEpisodeClick = (episode: any) => {
@@ -244,40 +322,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
     const ext = episode.container_extension || 'mp4';
     const url = client.getStreamUrl(streamId, 'series', ext);
     setCurrentStream({ url, title: episode.title || episode.name });
-  };
-
-  return (
-    <div className="flex h-screen bg-[#020203] text-white overflow-hidden relative font-sans">
+  };  return (
+    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden relative font-sans">
       {/* Atmosphere Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] right-[-5%] w-[60%] h-[60%] bg-orange-600/15 blur-[160px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[70%] h-[70%] bg-indigo-600/10 blur-[180px] rounded-full" />
-        <div className="absolute top-[20%] left-[20%] w-[30%] h-[30%] bg-orange-500/5 blur-[120px] rounded-full" />
+        <div className="absolute top-[-10%] right-[-5%] w-[60%] h-[60%] bg-orange-200/40 blur-[160px] rounded-full" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[70%] h-[70%] bg-indigo-100/40 blur-[180px] rounded-full" />
+        <div className="absolute top-[20%] left-[20%] w-[30%] h-[30%] bg-orange-100/30 blur-[120px] rounded-full" />
       </div>
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-24 md:w-80 border-r border-white/5 flex flex-col bg-black/40 backdrop-blur-3xl transition-all duration-500 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 w-24 md:w-80 border-r border-slate-200 flex flex-col bg-white/60 backdrop-blur-3xl transition-all duration-500 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-10 hidden md:block">
            <div className="flex items-center gap-5 group cursor-default">
-              <div className="h-14 w-14 bg-gradient-to-br from-orange-400 via-orange-600 to-orange-800 rounded-[1.5rem] flex items-center justify-center shadow-[0_12px_32px_rgba(234,88,12,0.4)] border border-white/20 group-hover:rotate-6 group-hover:scale-110 transition-all duration-500">
-                 <Tv2 className="h-8 w-8 text-white drop-shadow-lg" />
+              <div className="h-14 w-14 bg-gradient-to-br from-orange-400 via-orange-500 to-orange-700 rounded-[1.5rem] flex items-center justify-center shadow-[0_12px_32px_rgba(234,88,12,0.2)] border border-white/40 group-hover:rotate-6 group-hover:scale-110 transition-all duration-500">
+                 <Tv2 className="h-8 w-8 text-white drop-shadow-md" />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-2xl font-black italic tracking-tighter leading-none text-white drop-shadow-2xl">XSTREAM</h1>
-                <span className="text-[10px] uppercase tracking-[0.4em] text-orange-500 font-black mt-1">PRO CINEMA</span>
+                <h1 className="text-2xl font-black italic tracking-tighter leading-none text-slate-800">XSTREAM</h1>
+                <span className="text-[10px] uppercase tracking-[0.4em] text-orange-600 font-black mt-1">PRO CINEMA</span>
               </div>
            </div>
         </div>
         <div className="p-6 md:hidden flex justify-center mt-4">
-           <Tv2 className="h-8 w-8 text-orange-600 shadow-orange-600/50" />
+           <Tv2 className="h-8 w-8 text-orange-600" />
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto custom-scrollbar">
            {[
-             { id: 'live', icon: <Tv2 className="h-5 w-5" />, label: 'Live TV' },
-             { id: 'movie', icon: <Film className="h-5 w-5" />, label: 'Movies' },
-             { id: 'series', icon: <Library className="h-5 w-5" />, label: 'Series' },
-             { id: 'settings', icon: <Settings className="h-5 w-5" />, label: 'Settings' }
+             { id: 'live', icon: <Tv2 className="h-5 w-5" />, label: 'Canlı TV' },
+             { id: 'movie', icon: <Film className="h-5 w-5" />, label: 'Filmler' },
+             { id: 'series', icon: <Library className="h-5 w-5" />, label: 'Diziler' },
+             { id: 'settings', icon: <Settings className="h-5 w-5" />, label: 'Ayarlar' }
            ].map((item) => (
              <button
                 key={item.id}
@@ -286,37 +362,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                   setSelectedCategory(null);
                   setIsMobileMenuOpen(false);
                 }}
-                className={`w-full flex items-center justify-center md:justify-start gap-4 p-4 rounded-2xl transition-all relative group ${activeTab === item.id ? 'text-white' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                className={`w-full flex items-center justify-center md:justify-start gap-4 p-4 rounded-2xl transition-all relative group ${activeTab === item.id ? 'text-slate-900' : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100/50'}`}
              >
-                <div className={`relative z-10 transition-transform group-hover:scale-110 ${activeTab === item.id ? 'text-orange-500' : ''}`}>
+                <div className={`relative z-10 transition-transform group-hover:scale-110 ${activeTab === item.id ? 'text-orange-600' : ''}`}>
                   {item.icon}
                 </div>
                 <span className="hidden md:block font-black tracking-tight relative z-10 text-sm">{item.label}</span>
                 {activeTab === item.id && (
-                  <motion.div layoutId="navActive" className="absolute inset-0 bg-white/5 border border-white/5 rounded-2xl z-0" />
+                  <motion.div layoutId="navActive" className="absolute inset-0 bg-white shadow-sm border border-slate-200/50 rounded-2xl z-0" />
                 )}
              </button>
            ))}
         </nav>
 
-        <div className="p-4 border-t border-zinc-800">
-           <div className="hidden md:block mb-4 p-5 bg-white/5 rounded-2xl border border-white/5 backdrop-blur-sm">
+        <div className="p-4 border-t border-slate-100">
+           <div className="hidden md:block mb-4 p-5 bg-slate-50/80 rounded-2xl border border-slate-200/50 backdrop-blur-sm">
               <div className="flex items-center gap-3 mb-2">
-                 <div className="h-8 w-8 rounded-xl bg-orange-600 flex items-center justify-center text-xs font-black shadow-lg shadow-orange-600/20">
+                 <div className="h-8 w-8 rounded-xl bg-orange-500 flex items-center justify-center text-xs font-black text-white shadow-lg shadow-orange-500/20">
                     {authData.user_info.username.charAt(0).toUpperCase()}
                  </div>
-                 <span className="text-sm font-black text-white truncate pr-2">{authData.user_info.username}</span>
+                 <span className="text-sm font-black text-slate-800 truncate pr-2">{authData.user_info.username}</span>
               </div>
               <div className="flex items-center gap-2 mt-3">
-                 <div className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                 <div className="text-[10px] text-zinc-500 uppercase tracking-widest font-black">
+                 <div className="h-1.5 w-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]" />
+                 <div className="text-[10px] text-slate-500 uppercase tracking-widest font-black">
                     {authData.user_info.status === 'Active' ? 'Aktif Üyelik' : authData.user_info.status}
                  </div>
               </div>
            </div>
            <button 
              onClick={onLogout}
-             className="w-full flex items-center justify-center md:justify-start gap-4 p-4 rounded-2xl text-red-500 hover:bg-red-500/10 transition-all font-black text-sm group"
+             className="w-full flex items-center justify-center md:justify-start gap-4 p-4 rounded-2xl text-red-500 hover:bg-red-50 transition-all font-black text-sm group"
            >
               <LogOut className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
               <span className="hidden md:block">Oturumu Kapat</span>
@@ -327,12 +403,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col relative overflow-hidden w-full z-10">
          {/* Top Header */}
-         <header className="h-20 md:h-28 border-b border-white/5 flex items-center justify-between px-6 md:px-12 bg-black/10 backdrop-blur-3xl z-30 transition-all">
+         <header className="h-20 md:h-28 border-b border-slate-200/50 flex items-center justify-between px-6 md:px-12 bg-white/40 backdrop-blur-3xl z-30 transition-all">
             <div className="flex items-center gap-6 flex-1">
                <Button 
                  variant="ghost" 
                  size="icon" 
-                 className="md:hidden text-zinc-400 bg-white/5 h-12 w-12 rounded-2xl"
+                 className="md:hidden text-slate-400 bg-white h-12 w-12 rounded-2xl shadow-sm border border-slate-100"
                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                >
                  <Menu className="h-6 w-6" />
@@ -340,10 +416,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                
                <div className="flex-1 max-w-2xl">
                   <div className="relative group">
-                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-500 group-focus-within:text-orange-500 transition-all" />
+                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-orange-600 transition-all" />
                      <Input 
                        placeholder="Ne izlemek istersin? (Kanal, Film veya Dizi)" 
-                       className="bg-white/5 border-white/5 pl-14 h-14 md:h-16 rounded-[1.5rem] focus:bg-white/10 focus:ring-orange-600/20 transition-all text-base font-medium placeholder:text-zinc-600"
+                       className="bg-white/80 border-slate-200/60 pl-14 h-14 md:h-16 rounded-[1.5rem] focus:bg-white focus:ring-orange-500/10 transition-all text-base font-medium placeholder:text-slate-400 shadow-sm"
                        value={searchQuery}
                        onChange={(e) => setSearchQuery(e.target.value)}
                      />
@@ -352,12 +428,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
             </div>
             
             <div className="flex items-center gap-4 ml-8">
-                <div className="hidden lg:flex items-center gap-1.5 bg-white/5 p-1.5 rounded-2xl border border-white/5 backdrop-blur-md">
+                <div className="hidden lg:flex items-center gap-1.5 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50 backdrop-blur-md">
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => setViewMode('grid')}
-                    className={`h-10 w-10 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                    className={`h-10 w-10 rounded-xl transition-all ${viewMode === 'grid' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-900 hover:bg-white/50'}`}
                   >
                     <LayoutGrid className="h-5 w-5" />
                   </Button>
@@ -365,12 +441,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                     variant="ghost" 
                     size="icon" 
                     onClick={() => setViewMode('list')}
-                    className={`h-10 w-10 rounded-xl transition-all ${viewMode === 'list' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                    className={`h-10 w-10 rounded-xl transition-all ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-900 hover:bg-white/50'}`}
                   >
                     <List className="h-5 w-5" />
                   </Button>
                 </div>
-                <div className="md:hidden h-10 w-10 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-700 flex items-center justify-center text-xs font-black shadow-lg shadow-orange-600/30">
+                <div className="md:hidden h-10 w-10 rounded-2xl bg-orange-500 flex items-center justify-center text-xs font-black text-white shadow-lg shadow-orange-500/30">
                     {authData.user_info.username.charAt(0).toUpperCase()}
                 </div>
             </div>
@@ -379,25 +455,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
          {/* Grid Body */}
          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
             {activeTab === 'settings' ? (
-              <div className="flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar">
+              <div className="flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar bg-white/20">
                 <div className="max-w-4xl mx-auto space-y-8">
                   <header>
-                    <h2 className="text-4xl font-black tracking-tight text-white mb-2">Ayarlar</h2>
-                    <p className="text-zinc-500 font-medium">Uygulama tercihlerini ve ebeveyn denetimlerini buradan yönetebilirsiniz.</p>
+                    <h2 className="text-4xl font-black tracking-tight text-slate-900 mb-2">Ayarlar</h2>
+                    <p className="text-slate-500 font-medium">Uygulama tercihlerini ve ebeveyn denetimlerini buradan yönetebilirsiniz.</p>
                   </header>
 
                   <section className="space-y-6">
-                    <div className="p-8 bg-white/5 border border-white/5 rounded-[2.5rem] backdrop-blur-3xl shadow-2xl relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-orange-600/10 blur-[60px] rounded-full -mr-16 -mt-16" />
+                    <div className="p-8 bg-white/60 border border-white/60 rounded-[2.5rem] backdrop-blur-3xl shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 blur-[60px] rounded-full -mr-16 -mt-16" />
                       
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-10">
                         <div className="flex items-center gap-6">
-                          <div className="p-4 bg-orange-600/20 text-orange-500 rounded-[1.5rem] shadow-inner border border-white/5">
+                          <div className="p-4 bg-orange-50 text-orange-600 rounded-[1.5rem] border border-orange-100">
                              <ShieldCheck className="h-8 w-8" />
                           </div>
                           <div>
-                            <h3 className="text-2xl font-black tracking-tight text-white">Ebeveyn Denetimi</h3>
-                            <p className="text-zinc-500 font-medium mt-1">Özel kategorileri 4 haneli bir PIN ile koruma altına alın.</p>
+                            <h3 className="text-2xl font-black tracking-tight text-slate-800">Ebeveyn Denetimi</h3>
+                            <p className="text-slate-500 font-medium mt-1">Özel kategorileri 4 haneli bir PIN ile koruma altına alın.</p>
                           </div>
                         </div>
                         <Button 
@@ -405,7 +481,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                             setTempPin('');
                             setShowPinSetup(true);
                           }}
-                          className="bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl h-12 px-8 font-black transition-all hover:scale-105 active:scale-95"
+                          className="bg-slate-900 hover:bg-slate-800 text-white rounded-2xl h-12 px-8 font-black transition-all hover:scale-105 active:scale-95"
                         >
                           {pin ? 'PIN Değiştir' : 'PIN Oluştur'}
                         </Button>
@@ -413,17 +489,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
 
                       {pin && (
                         <div className="space-y-6">
-                          <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-zinc-600 pb-4 border-b border-white/5">
+                          <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 pb-4 border-b border-slate-100">
                              <Lock className="h-3.5 w-3.5" />
                              <span>Kilitli Kategoriler</span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                              {categories.map(cat => (
-                               <div key={cat.category_id} className="flex items-center justify-between p-5 rounded-[1.5rem] bg-white/5 border border-white/5 group hover:bg-white/10 transition-all hover:border-orange-500/30">
-                                 <span className="text-sm font-black truncate pr-4 text-zinc-100">{cat.category_name}</span>
+                               <div key={cat.category_id} className="flex items-center justify-between p-5 rounded-[1.5rem] bg-slate-50/50 border border-slate-100 group hover:bg-white transition-all hover:shadow-md">
+                                 <span className="text-sm font-black truncate pr-4 text-slate-700">{cat.category_name}</span>
                                  <button 
                                    onClick={() => toggleCategoryLock(cat.category_id)}
-                                   className={`p-3 rounded-xl transition-all ${lockedCategories.includes(cat.category_id) ? 'bg-orange-600 text-white shadow-[0_8px_15px_rgba(234,88,12,0.3)]' : 'text-zinc-600 hover:text-white bg-zinc-900/60'}`}
+                                   className={`p-3 rounded-xl transition-all ${lockedCategories.includes(cat.category_id) ? 'bg-orange-500 text-white shadow-lg' : 'text-slate-300 hover:text-slate-600 bg-slate-100'}`}
                                  >
                                    {lockedCategories.includes(cat.category_id) ? <Lock className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
                                  </button>
@@ -438,12 +514,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
               </div>
             ) : (
               <>
-            <aside className="w-full md:w-80 border-b md:border-b-0 md:border-r border-white/5 flex flex-col bg-white/5 backdrop-blur-3xl h-[80px] md:h-full overflow-hidden shrink-0 transition-all duration-500">
-               <div className="px-8 py-6 flex items-center justify-between border-b border-white/5 hidden md:flex bg-black/10">
-                  <div className="text-[11px] font-black uppercase tracking-[0.4em] text-zinc-500">Kategoriler</div>
+            <aside className="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-200/50 flex flex-col bg-white/40 backdrop-blur-3xl h-[80px] md:h-full overflow-hidden shrink-0 transition-all duration-500">
+               <div className="px-8 py-6 flex items-center justify-between border-b border-slate-200/50 hidden md:flex bg-slate-50/30">
+                  <div className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-400">Kategoriler</div>
                   <div className="flex gap-2">
-                     <div className="h-1.5 w-1.5 rounded-full bg-orange-600 animate-pulse shadow-[0_0_8px_rgba(234,88,12,0.8)]" />
-                     <div className="h-1.5 w-1.5 rounded-full bg-orange-600/20" />
+                     <div className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />
+                     <div className="h-1.5 w-1.5 rounded-full bg-slate-200" />
                   </div>
                </div>
                <ScrollArea className="flex-1">
@@ -451,7 +527,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                      {isLoading && categories.length === 0 ? (
                         Array(12).fill(0).map((_, i) => (
                            <div key={i} className="px-6 py-4">
-                              <Skeleton className="h-5 w-full bg-white/5 rounded-xl" />
+                              <Skeleton className="h-5 w-full bg-slate-100 rounded-xl" />
                            </div>
                         ))
                      ) : (
@@ -459,15 +535,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                           <button
                             key={cat.category_id}
                             onClick={() => onCategoryClick(cat.category_id)}
-                            className={`whitespace-nowrap md:whitespace-normal px-6 py-5 rounded-[1.5rem] text-sm transition-all flex items-center justify-between group flex-shrink-0 relative overflow-hidden ${selectedCategory === cat.category_id ? 'text-white font-black' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+                            className={`whitespace-nowrap md:whitespace-normal px-6 py-5 rounded-[1.5rem] text-sm transition-all flex items-center justify-between group flex-shrink-0 relative overflow-hidden ${selectedCategory === cat.category_id ? 'text-white font-black' : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'}`}
                           >
                            <span className="relative z-10 truncate tracking-tight uppercase tracking-wider text-[11px] font-black">{cat.category_name}</span>
                            <div className="flex items-center gap-3 relative z-10 ml-4">
-                              {lockedCategories.includes(cat.category_id) && <Lock className={`h-4 w-4 ${selectedCategory === cat.category_id ? 'text-white' : 'text-orange-600/60'}`} />}
+                              {lockedCategories.includes(cat.category_id) && <Lock className={`h-4 w-4 ${selectedCategory === cat.category_id ? 'text-white' : 'text-orange-500/40'}`} />}
                               <ChevronRight className={`hidden md:block h-4 w-4 transition-all duration-500 ${selectedCategory === cat.category_id ? 'translate-x-0 opacity-100' : '-translate-x-6 opacity-0 group-hover:opacity-100 group-hover:translate-x-0'}`} />
                            </div>
                            {selectedCategory === cat.category_id && (
-                              <motion.div layoutId="activeCat" className="absolute inset-0 bg-orange-600 z-0 shadow-2xl shadow-orange-600/40" />
+                              <motion.div layoutId="activeCat" className="absolute inset-0 bg-orange-600 z-0 shadow-xl shadow-orange-600/30" />
                            )}
                           </button>
                         ))
@@ -477,16 +553,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
             </aside>
 
             {/* Stream Grid Section */}
-            <div className="flex-1 bg-black/10 relative flex flex-col min-w-0">
+            <div className="flex-1 bg-slate-50/30 relative flex flex-col min-w-0">
                <ScrollArea className="flex-1">
                   <div className={`p-4 md:p-10 ${viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5 md:gap-10' : 'mx-auto max-w-5xl space-y-4'}`}>
                      {isLoading && streams.length === 0 ? (
                        Array(12).fill(0).map((_, i) => (
                          <div key={i} className={viewMode === 'grid' ? "" : "w-full"}>
-                            <Skeleton className={`${viewMode === 'grid' ? 'aspect-video w-full' : 'h-16 w-full'} rounded-2xl bg-white/5 border border-white/5`} />
+                            <Skeleton className={`${viewMode === 'grid' ? 'aspect-video w-full' : 'h-16 w-full'} rounded-2xl bg-white border border-slate-100`} />
                          </div>
                        ))
-                     ) : (
+                     ) : filteredStreams.length > 0 ? (
                        paginatedStreams.map((stream) => (
                          <StreamItem 
                             key={(stream as any).stream_id || (stream as any).series_id} 
@@ -496,17 +572,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                             onClick={handleStreamClick} 
                          />
                        ))
+                     ) : (
+                       <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
+                          <div className="h-20 w-20 bg-slate-100 rounded-[2rem] flex items-center justify-center mb-6 border border-slate-200/50">
+                             <Library className="h-10 w-10 text-slate-300" />
+                          </div>
+                          <h3 className="text-xl font-black text-slate-800 mb-2">İçerik Bulunamadı</h3>
+                          <p className="text-slate-500 max-w-xs">Bu kategoride henüz içerik bulunmuyor veya aramanızla eşleşen sonuç yok.</p>
+                       </div>
                      )}
                      
                      {filteredStreams.length > displayLimit && (
                        <div className="col-span-full flex justify-center py-20 pb-32">
                          <div className="relative group">
-                           <div className="absolute inset-x-0 inset-y-0 bg-orange-600 blur-3xl opacity-20 group-hover:opacity-40 transition-opacity" />
+                           <div className="absolute inset-x-0 inset-y-0 bg-orange-500 blur-3xl opacity-20 group-hover:opacity-30 transition-opacity" />
                            <Button 
                              onClick={() => setDisplayLimit(prev => prev + 48)}
-                             className="relative bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-[2rem] px-14 h-16 font-black tracking-tight backdrop-blur-3xl transition-all shadow-2xl hover:scale-105 active:scale-95"
+                             className="relative bg-white border border-slate-200 hover:bg-slate-50 text-slate-900 rounded-[2rem] px-14 h-16 font-black tracking-tight shadow-lg transition-all hover:scale-105 active:scale-95"
                            >
-                             Daha Fazla İçerik <span className="text-orange-500 ml-3">({filteredStreams.length - displayLimit} içerik kaldı)</span>
+                             Daha Fazla İçerik <span className="text-orange-600 ml-3">({filteredStreams.length - displayLimit} içerik kaldı)</span>
                            </Button>
                          </div>
                        </div>
@@ -515,13 +599,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                </ScrollArea>
                {isMobileMenuOpen && (
                  <div 
-                   className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden" 
+                   className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-30 md:hidden" 
                    onClick={() => setIsMobileMenuOpen(false)}
                  />
                )}
             </div>
-           </>
-          )}
+            </>
+           )}
          </div>
 
          {/* Player Overlay */}
@@ -536,6 +620,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                 <VideoPlayer 
                   url={currentStream.url} 
                   title={currentStream.title} 
+                  epgInfo={currentStream.epg}
                   onClose={() => setCurrentStream(null)} 
                 />
               </motion.div>
@@ -543,41 +628,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
          </AnimatePresence>
           {/* Dialogs for PIN */}
           <Dialog open={showPinSetup} onOpenChange={setShowPinSetup}>
-            <DialogContent className="bg-zinc-900 border-zinc-800 text-white sm:max-w-md">
+            <DialogContent className="bg-white border-slate-200 text-slate-800 sm:max-w-md rounded-[2.5rem] shadow-2xl">
               <DialogHeader>
-                <DialogTitle>Ebeveyn PIN Kodu Oluştur</DialogTitle>
-                <DialogDescription className="text-zinc-400">
+                <DialogTitle className="text-2xl font-black italic">Ebeveyn PIN Kodu Oluştur</DialogTitle>
+                <DialogDescription className="text-slate-500 font-medium">
                   Kilitli kategorilere erişmek için 4 haneli bir PIN kodu belirleyin.
                 </DialogDescription>
               </DialogHeader>
               <div className="py-6">
-                <Label htmlFor="pin" className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2 block">4 Haneli PIN</Label>
+                <Label htmlFor="pin" className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 block">4 Haneli PIN</Label>
                 <Input
                   id="pin"
                   type="password"
                   maxLength={4}
                   value={tempPin}
                   onChange={(e) => setTempPin(e.target.value.replace(/\D/g, ''))}
-                  className="bg-zinc-950 border-zinc-800 text-2xl tracking-[1em] text-center h-14"
+                  className="bg-slate-100 border-slate-200 text-slate-900 text-2xl tracking-[1em] text-center h-16 rounded-2xl shadow-inner focus:ring-orange-500/10"
                   placeholder="0000"
                 />
               </div>
               <DialogFooter>
-                <Button onClick={handleSavePin} className="w-full bg-orange-600 hover:bg-orange-700">PIN Kodunu Kaydet</Button>
+                <Button onClick={handleSavePin} className="w-full bg-slate-900 hover:bg-slate-800 text-white h-14 rounded-2xl font-black text-base shadow-xl">PIN Kodunu Kaydet</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
           <Dialog open={showPinVerify} onOpenChange={setShowPinVerify}>
-            <DialogContent className="bg-zinc-900 border-zinc-800 text-white sm:max-w-md">
+            <DialogContent className="bg-white border-slate-200 text-slate-800 sm:max-w-md rounded-[2.5rem] shadow-2xl">
               <DialogHeader>
-                <DialogTitle>PIN Kodunu Girin</DialogTitle>
-                <DialogDescription className="text-zinc-400">
+                <DialogTitle className="text-2xl font-black italic">PIN Kodunu Girin</DialogTitle>
+                <DialogDescription className="text-slate-500 font-medium">
                   Bu içerik korunmaktadır. Devam etmek için lütfen PIN kodunuzu girin.
                 </DialogDescription>
               </DialogHeader>
               <div className="py-6">
-                <Label htmlFor="verify-pin" className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-2 block">4 Haneli PIN</Label>
+                <Label htmlFor="verify-pin" className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-3 block">4 Haneli PIN</Label>
                 <Input
                   id="verify-pin"
                   type="password"
@@ -585,20 +670,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                   value={tempPin}
                   onChange={(e) => setTempPin(e.target.value.replace(/\D/g, ''))}
                   onKeyDown={(e) => e.key === 'Enter' && handleVerifyPin()}
-                  className="bg-zinc-950 border-zinc-800 text-2xl tracking-[1em] text-center h-14"
+                  className="bg-slate-100 border-slate-200 text-slate-900 text-2xl tracking-[1em] text-center h-16 rounded-2xl shadow-inner focus:ring-orange-500/10"
                   placeholder="0000"
                   autoFocus
                 />
               </div>
               <DialogFooter>
-                <Button onClick={handleVerifyPin} className="w-full bg-orange-600 hover:bg-orange-700">Kilidi Aç</Button>
+                <Button onClick={handleVerifyPin} className="w-full bg-orange-600 hover:bg-orange-700 text-white h-14 rounded-2xl font-black text-base shadow-xl shadow-orange-600/20">Kilidi Aç</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
           {/* Series Details Dialog */}
           <Dialog open={!!selectedSeries} onOpenChange={() => setSelectedSeries(null)}>
-            <DialogContent className="bg-[#0a0a0c] border-white/5 text-white max-w-5xl h-[85vh] p-0 overflow-hidden flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-[3rem]">
+            <DialogContent className="bg-white border-slate-100 text-slate-800 max-w-5xl h-[85vh] p-0 overflow-hidden flex flex-col shadow-2xl rounded-[3rem]">
                {selectedSeries && (
                  <>
                    {/* Header with Backdrop */}
