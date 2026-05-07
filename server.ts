@@ -27,8 +27,8 @@ async function startServer() {
   // Rate Limiting to prevent brute force or DDoS
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: "Çok fazla istek gönderdiniz, lütfen daha sonra tekrar deneyin.",
+    max: 5000, // Increased limit for smoother browsing
+    message: "Rate limit exceeded, please try again later.",
   });
   app.use("/api/", limiter);
 
@@ -55,7 +55,7 @@ async function startServer() {
           "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
         },
         responseType: req.query.stream === "true" ? "stream" : "json",
-        timeout: 10000,
+        timeout: 30000, // Increased timeout for large data sets
       });
 
       if (req.query.stream === "true") {
@@ -70,7 +70,7 @@ async function startServer() {
       console.error("Proxy error occurred"); 
       res.status(error.response?.status || 500).json({
         error: "Server connectivity error",
-        message: "Bağlantı hatası oluştu.",
+        message: "Connectivity error occurred.",
       });
     }
   });
