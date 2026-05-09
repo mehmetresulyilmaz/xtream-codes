@@ -50,14 +50,18 @@ export default function App() {
       console.error('Login error:', err);
       let message = 'Bağlantı hatası. Lütfen URL ve bilgileri kontrol edin.';
       
-      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        message = 'Sunucu zaman aşımına uğradı (Sunucu çok yavaş veya kapalı).';
+      if (err.message === 'Network Error') {
+        message = 'Sunucuya erişilemiyor veya ağ bağlantısı koptu. Lütfen daha sonra tekrar deneyin.';
+      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        message = 'İstemci tarafında zaman aşımı (İnternet bağlantınızı kontrol edin).';
       } else if (err.response?.data?.message) {
         message = err.response.data.message;
       } else if (err.response?.status === 404) {
         message = 'Sunucu adresi veya API yolu bulunamadı (404).';
-      } else if (err.response?.status === 504 || err.response?.status === 502) {
-        message = 'Sunucu şu an erişilemiyor (Gateway Error).';
+      } else if (err.response?.status === 504) {
+        message = 'Sağlayıcı zaman aşımına uğradı (Sunucu çok yavaş).';
+      } else if (err.response?.status === 502) {
+        message = 'Sağlayıcıya erişilemiyor (Bağlantı reddedildi veya IP engelli).';
       }
       
       setError(message);

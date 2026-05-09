@@ -28,7 +28,7 @@ export class XtreamClient {
         params: {
           targetUrl: targetUrl.toString()
         },
-        timeout: 120000
+        timeout: 240000
       });
       return response.data;
     } catch (error: any) {

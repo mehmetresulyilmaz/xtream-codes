@@ -47,21 +47,53 @@ async function startServer() {
       
       const isStream = req.query.stream === "true";
 
-      const response = await axios({
-        method: req.method,
-        url: targetUrl,
-        data: req.body,
-        params: { ...req.query, targetUrl: undefined },
-        headers: {
-          "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36",
-          "Accept": "*/*",
-          "Accept-Encoding": "identity", // Prevent compression on streams
-          "Connection": "keep-alive",
-        },
-        responseType: isStream ? "stream" : "json",
-        timeout: isStream ? 0 : 180000, 
-        validateStatus: () => true, 
-      });
+      // Enhanced axios call with retry logic for specific errors
+      let response;
+      let retries = 1; // Reduced retries to keep total time under LB limits
+      let lastError;
+
+      const userAgents = [
+        "IPTVSmartersPlayer",
+        "VLC/3.0.18 LibVLC/3.0.18",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      ];
+
+      while (retries >= 0) {
+        try {
+          response = await axios({
+            method: req.method,
+            url: targetUrl,
+            data: req.body,
+            params: { ...req.query, targetUrl: undefined },
+            headers: {
+              "User-Agent": userAgents[1 - retries] || userAgents[0],
+              "Accept": "*/*",
+              "Accept-Encoding": "identity", 
+              "Connection": "close",
+              "Referer": parsedUrl.origin,
+              "X-Forwarded-For": req.ip, // Sometimes helps with geolocation-based blocks
+            },
+            family: 4, 
+            responseType: isStream ? "stream" : "json",
+            timeout: isStream ? 0 : 90000, // 90 seconds per attempt
+            validateStatus: () => true, 
+          });
+          break; 
+        } catch (error: any) {
+          lastError = error;
+          const isRetryable = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED' || error.message.includes('timeout');
+          if (isRetryable && retries > 0) {
+            const delay = 1000;
+            console.warn(`Proxy retrying (${retries} left) for:`, targetUrl);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            retries--;
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      if (!response) throw lastError;
 
       if (isStream) {
         const contentType = response.headers["content-type"];
@@ -86,13 +118,25 @@ async function startServer() {
         res.status(response.status).json(response.data);
       }
     } catch (error: any) {
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      const isConnectionError = error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND';
+      const isTimeout = error.code === 'ECONNABORTED' || error.message.includes('timeout');
+
+      if (isTimeout) {
         console.error("Proxy timeout:", targetUrl);
         return res.status(504).json({
           error: "Provider Timeout",
           message: "The provider took too long to respond. Please try again or check your provider status.",
         });
       }
+
+      if (isConnectionError) {
+        console.error("Proxy connection error:", error.code, targetUrl);
+        return res.status(502).json({
+          error: "Provider Unreachable",
+          message: `Could not connect to the provider (${error.code}). The server might be down or blocking the connection.`,
+        });
+      }
+
       console.error("Proxy integration error:", error.message); 
       res.status(500).json({
         error: "Server connectivity error",

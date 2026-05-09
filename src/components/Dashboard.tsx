@@ -284,8 +284,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
       if (cats.length > 0 && !selectedCategory) {
         setSelectedCategory(cats[0].category_id);
       }
-    } catch (err) {
-      toast.error('Failed to load categories');
+    } catch (err: any) {
+      console.error('Category load error:', err);
+      let msg = 'Kategoriler yüklenemedi';
+      if (err.message === 'Network Error') {
+        msg = 'Sunucuyla bağlantı kurulamadı (Ağ hatası)';
+      } else if (err.response?.data?.message) {
+        msg = err.response.data.message;
+      }
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -303,9 +310,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
       console.log(`Loaded ${data.length} items for ${type} in category ${catId}`);
       setStreams(Array.isArray(data) ? data : []);
       setDisplayLimit(48); // Reset limit on category change
-    } catch (err) {
+    } catch (err: any) {
       console.error('Stream loading error:', err);
-      toast.error('İçerikler yüklenirken hata oluştu');
+      let msg = 'İçerikler yüklenirken hata oluştu';
+      if (err.message === 'Network Error') {
+        msg = 'Bağlantı koptu. Lütfen tekrar deneyin.';
+      } else if (err.response?.data?.message) {
+        msg = err.response.data.message;
+      }
+      toast.error(msg);
       setStreams([]);
     } finally {
       setIsLoading(false);
