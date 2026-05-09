@@ -25,7 +25,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
   const [useProxy, setUseProxy] = useState(false);
   const [showReload, setShowReload] = useState(false);
   const [playerType, setPlayerType] = useState<'hls' | 'mpegts' | 'native' | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const controlsTimeoutRef = useRef<number | null>(null);
+  const mpegtsRetryRef = useRef(0);
+
+  useEffect(() => {
+    mpegtsRetryRef.current = 0;
+    setRetryCount(0);
+  }, [url]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -58,15 +65,23 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
 
     try {
       if (video) {
-          video.onplay = () => setIsLoading(false);
+          video.onplay = () => {
+            setIsLoading(false);
+            mpegtsRetryRef.current = 0;
+          };
           video.onplaying = () => setIsLoading(false);
           
-          if (isHls && Hls.isSupported()) {
+          // Use playerType state if it's already determined/forced, otherwise detect
+          const activeType = playerType || (isHls && Hls.isSupported() ? 'hls' : (isTs && mpegts.getFeatureList().mseLivePlayback ? 'mpegts' : 'native'));
+
+          if (activeType === 'hls' && Hls.isSupported()) {
             setPlayerType('hls');
             hls = new Hls({
               enableWorker: true,
               lowLatencyMode: true,
               backBufferLength: 90,
+              manifestLoadingMaxRetry: 4,
+              levelLoadingMaxRetry: 4,
               xhrSetup: (xhr) => {
                 xhr.withCredentials = false;
               }
@@ -75,7 +90,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
             hls.attachMedia(video);
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
               setIsLoading(false);
-              video.play().catch(e => console.log('Autoplay blocked', e));
+              video.play().catch(e => {
+                if (e.name !== 'AbortError') console.log('HLS play blocked', e);
+              });
             });
             hls.on(Hls.Events.ERROR, (_event, data) => {
               if (data.fatal) {
@@ -87,7 +104,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
                 }
               }
             });
-          } else if (isTs && mpegts.getFeatureList().mseLivePlayback) {
+          } else if (activeType === 'mpegts' && mpegts.getFeatureList().mseLivePlayback) {
             setPlayerType('mpegts');
             mpegtsPlayer = mpegts.createPlayer({
               type: 'mse',
@@ -96,29 +113,99 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
               cors: true
             }, {
               enableWorker: true,
-              enableStashBuffer: false,
-              stashInitialSize: 128
+              enableStashBuffer: true,
+              stashInitialSize: 384,
+              lazyLoad: false,
+              autoCleanupSourceBuffer: true,
+              autoCleanupMaxBackwardDuration: 30,
+              autoCleanupMinBackwardDuration: 15,
+              deferLoadAfterSourceOpen: false,
+              liveBufferLatencyChasing: true,
+              liveBufferLatencyMaxLatency: 10,
+              statisticsInfoReportInterval: 1000
             });
             mpegtsPlayer.attachMediaElement(video);
             mpegtsPlayer.load();
-            mpegtsPlayer.play().catch((e: any) => console.log('mpegts autoplay blocked', e));
+            mpegtsPlayer.play().catch((e: any) => {
+              if (e.name !== 'AbortError' && !e.message?.includes('pause') && !e.message?.includes('interrupted')) {
+                console.log('mpegts autoplay blocked', e);
+              }
+            });
             
             mpegtsPlayer.on(mpegts.Events.ERROR, (type: any, detail: any) => {
-               console.error('mpegts error', type, detail);
+               console.error('mpegts error type:', type, 'detail:', detail);
                
-               const detailStr = typeof detail === 'string' ? detail : (detail?.message || detail?.exception || JSON.stringify(detail));
-               const isNetworkError = type === mpegts.ErrorTypes.NETWORK_ERROR || 
+               const detailStr = typeof detail === 'string' ? detail : (detail?.message || detail?.exception || (detail?.status ? `Status ${detail.status}` : '') || (detail?.code ? `Code ${detail.code}` : '') || JSON.stringify(detail));
+               
+               const isNetworkError = type === mpegts.ErrorTypes?.NETWORK_ERROR || 
+                                     detail === 'Exception' ||
+                                     detail === 'HttpStatusCodeInvalid' ||
+                                     detail === 'NetworkTimeout' ||
+                                     detail === 'NetworkUnrecoverableEarlyEOF' ||
                                      detailStr?.toLowerCase().includes('network') ||
+                                     detailStr?.toLowerCase().includes('http') ||
                                      detailStr?.toLowerCase().includes('exception') ||
-                                     detailStr?.toLowerCase().includes('timeout') ||
+                                     detailStr?.toLowerCase().includes('abort') ||
                                      detailStr?.toLowerCase().includes('failed');
+                                     
+               const isMediaError = type === mpegts.ErrorTypes?.MEDIA_ERROR ||
+                                   detail === 'MediaMSEError' ||
+                                   detail === 'MediaFormatError' ||
+                                   detailStr?.toLowerCase().includes('decode') ||
+                                   detailStr?.toLowerCase().includes('format') ||
+                                   detailStr?.toLowerCase().includes('mse') ||
+                                   detailStr?.toLowerCase().includes('sourcebuffer');
+
+               const isAuthError = detailStr?.includes('401') || 
+                                  detailStr?.includes('403') || 
+                                  detailStr?.includes('authentication') ||
+                                  detailStr?.includes('denied') ||
+                                  (detail === 'HttpStatusCodeInvalid' && (detailStr?.includes('401') || detailStr?.includes('403'))) ||
+                                  (detail?.status === 401 || detail?.status === 403) ||
+                                  (detail?.code === 401 || detail?.code === 403);
+
+               if (isAuthError && !useProxy) {
+                 console.log('mpegts Auth error detected, triggering proxy retry...');
+                 setUseProxy(true);
+                 return;
+               }
+
+               if (isAuthError) {
+                 setError('Yayın sunucusu bağlantıyı reddetti (401/403). Kullanıcı bilgileriniz yanlış olabilir veya yayın süresi dolmuş olabilir.');
+                 setIsLoading(false);
+                 return;
+               }
 
                if (isNetworkError && !useProxy) {
                  console.log('mpegts Network/Exception detected, triggering proxy retry...');
                  setUseProxy(true);
-               } else if (isNetworkError && useProxy) {
-                 // Even proxy failed, wait a bit and try one more time or show fatal
-                 setError(`Yayın bağlantısı kurulamadı (Sinyal Yok veya Engelli). Lütfen internetinizi kontrol edin.`);
+               } else if ((isNetworkError || isMediaError) && mpegtsRetryRef.current < 8) {
+                 mpegtsRetryRef.current++;
+                 const currentRetry = mpegtsRetryRef.current;
+                 console.warn(`mpegts error detected, scheduling retry #${currentRetry}... type: ${type}, detail: ${detailStr}`);
+                 
+                 if (currentRetry >= 5) {
+                    console.log('mpegts failing repeatedly, trying native fallback...');
+                    setPlayerType('native');
+                    return;
+                 }
+
+                 if (currentRetry > 2) {
+                    setIsLoading(true);
+                 }
+
+                 const delay = Math.min(currentRetry * 2000, 8000);
+                 
+                 setTimeout(() => {
+                    if (mpegtsRetryRef.current > 0) { // Check if we haven't unmounted or changed URL
+                        setRetryCount(prev => prev + 1);
+                    }
+                 }, delay);
+               } else if (isNetworkError) {
+                 setError(`Yayın bağlantısı kurulamadı (NetworkError/Exception). Sunucu yoğun olabilir veya erişim engellenmiş olabilir.`);
+                 setIsLoading(false);
+               } else if (isMediaError) {
+                 setError(`Yayın formatı desteklenmiyor veya veri bozuk (MediaError).`);
                  setIsLoading(false);
                } else {
                  setError(`Yayın hatası: ${type} (${detailStr || 'Bilinmiyor'})`);
@@ -141,11 +228,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
               if (!useProxy) {
                 setUseProxy(true);
               } else {
-                setError('Bu yayın formatı tarayıcınızda desteklenmiyor.');
+                setError('Yayın bağlantısı kurulamadı veya bu format tarayıcınızda desteklenmiyor.');
                 setIsLoading(false);
               }
             };
-            video.play().catch(e => console.log('Native autoplay blocked', e));
+            video.play().catch(e => {
+              if (e.name !== 'AbortError') console.log('Native playback blocked', e);
+            });
           }
       }
     } catch (err: any) {
@@ -176,17 +265,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
         hls.destroy();
       }
       if (mpegtsPlayer) {
-        mpegtsPlayer.destroy();
+        try {
+            mpegtsPlayer.pause();
+            mpegtsPlayer.unload();
+            mpegtsPlayer.detachMediaElement();
+            mpegtsPlayer.destroy();
+        } catch (e) {
+            console.error('Error destroying mpegtsPlayer:', e);
+        }
       }
     };
-  }, [url, useProxy]);
+  }, [url, useProxy, retryCount]);
 
   const togglePlay = () => {
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        videoRef.current.play();
+        videoRef.current.play().catch(e => {
+          if (e.name !== 'AbortError' && !e.message?.includes('pause') && !e.message?.includes('interrupted')) {
+            console.error('Play error:', e);
+          }
+        });
       }
       setIsPlaying(!isPlaying);
     }
@@ -286,14 +386,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
 
       {/* Error State */}
       {error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white z-30 px-10 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white z-[60] px-10 text-center">
           <div className="h-20 w-20 bg-red-50 rounded-3xl flex items-center justify-center mb-6 border border-red-100">
             <Settings className="h-10 w-10 text-red-500" />
           </div>
           <h3 className="text-2xl font-black text-slate-800 mb-2">Eyvallah, Bir Sorun Var!</h3>
           <p className="text-slate-500 max-w-md mb-8">{error}</p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button onClick={() => setUseProxy(!useProxy)} className="bg-orange-600 hover:bg-orange-700 text-white rounded-2xl px-10 h-14 font-black shadow-xl shadow-orange-600/20">
+            <Button 
+              onClick={() => {
+                setError(null);
+                setIsLoading(true);
+                setUseProxy(!useProxy);
+              }} 
+              className="bg-orange-600 hover:bg-orange-700 text-white rounded-2xl px-10 h-14 font-black shadow-xl shadow-orange-600/20"
+            >
               {useProxy ? 'Normal Bağlantı Dene' : 'Proxy ile Yeniden Dene'}
             </Button>
             <Button variant="outline" onClick={onClose} className="border-slate-200 text-slate-600 rounded-2xl px-10 h-14 font-black shadow-sm">
@@ -304,68 +411,64 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
       )}
 
       {/* Header Info */}
-      <div className={`absolute top-0 left-0 right-0 p-8 bg-gradient-to-b from-white via-white/80 to-transparent transition-opacity duration-500 z-10 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`absolute top-0 left-0 right-0 p-4 sm:p-8 bg-gradient-to-b from-white via-white/80 to-transparent transition-opacity duration-500 z-10 ${showControls ? 'opacity-100' : 'opacity-0'}`}>
         <div className="flex justify-between items-center text-slate-800">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-slate-100 text-slate-800 rounded-full bg-white shadow-sm border border-slate-100">
-              <ChevronRight className="h-5 w-5 rotate-180" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-slate-100 text-slate-800 rounded-full bg-white shadow-sm border border-slate-100 h-8 w-8 sm:h-10 sm:w-10">
+              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 rotate-180" />
             </Button>
             <div>
-              <h2 className="text-2xl font-black tracking-tighter truncate max-w-[300px] md:max-w-[600px] leading-tight text-slate-900">{title || 'Canlı Yayın'}</h2>
+              <h2 className="text-base sm:text-2xl font-black tracking-tighter truncate max-w-[150px] sm:max-w-[600px] leading-tight text-slate-900">{title || 'Canlı Yayın'}</h2>
               {epgInfo && (
-                <div className="mt-1 flex items-center gap-3">
-                   <span className="text-[10px] font-black uppercase tracking-widest text-orange-600 bg-orange-50 px-2 py-0.5 rounded shadow-sm">
+                <div className="mt-0.5 sm:mt-1 flex items-center gap-2 sm:gap-3">
+                   <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded shadow-sm truncate max-w-[120px] sm:max-w-none">
                      ŞİMDİ: {safeDecode(epgInfo.title)}
                    </span>
                    {epgInfo.start && (
-                     <span className="text-[9px] font-bold text-slate-400">
+                     <span className="text-[8px] sm:text-[9px] font-bold text-slate-400">
                        {new Date(epgInfo.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                      </span>
                    )}
                 </div>
               )}
-              <div className="flex items-center gap-2 mt-1">
-                <div className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sunucuya Bağlandı</span>
-              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Controls Overlay */}
-      <div className={`absolute bottom-0 left-0 right-0 p-10 bg-gradient-to-t from-white via-white/80 to-transparent transition-all duration-500 z-10 ${showControls ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-        <div className="flex items-center gap-8 text-slate-800 max-w-7xl mx-auto">
-          <Button variant="ghost" size="icon" onClick={togglePlay} className="hover:bg-orange-50 text-orange-600 h-16 w-16 rounded-[1.5rem] bg-white border border-slate-200 shadow-xl group">
+      <div className={`absolute bottom-0 left-0 right-0 p-4 sm:p-10 bg-gradient-to-t from-white via-white/80 to-transparent transition-all duration-500 z-10 ${showControls ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+        <div className="flex items-center gap-3 sm:gap-8 text-slate-800 max-w-7xl mx-auto">
+          <Button variant="ghost" size="icon" onClick={togglePlay} className="hover:bg-orange-50 text-orange-600 h-12 w-12 sm:h-16 sm:w-16 rounded-xl sm:rounded-[1.5rem] bg-white border border-slate-200 shadow-xl group flex-shrink-0">
             {isPlaying ? (
-              <Pause className="h-8 w-8 fill-current group-hover:scale-110 transition-transform" />
+              <Pause className="h-5 w-5 sm:h-8 sm:w-8 fill-current group-hover:scale-110 transition-transform" />
             ) : (
-              <Play className="h-8 w-8 fill-current ml-1 group-hover:scale-110 transition-transform" />
+              <Play className="h-5 w-5 sm:h-8 sm:w-8 fill-current ml-0.5 sm:ml-1 group-hover:scale-110 transition-transform" />
             )}
           </Button>
 
-          <div className="flex items-center gap-4 bg-white border border-slate-200 p-4 rounded-[1.5rem] group/vol shadow-lg">
-            <Button variant="ghost" size="icon" onClick={toggleMute} className="hover:bg-slate-100 text-slate-600">
-              {isMuted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" /> }
+          <div className="flex items-center gap-2 sm:gap-4 bg-white border border-slate-200 p-2 sm:p-4 rounded-xl sm:rounded-[1.5rem] group/vol shadow-lg">
+            <Button variant="ghost" size="icon" onClick={toggleMute} className="hover:bg-slate-100 text-slate-600 h-8 w-8 sm:h-10 sm:w-10">
+              {isMuted || volume === 0 ? <VolumeX className="h-4 w-4 sm:h-5 sm:w-5" /> : <Volume2 className="h-4 w-4 sm:h-5 sm:w-5" /> }
             </Button>
             <Slider 
                value={[isMuted ? 0 : volume]} 
                max={1} 
                step={0.01} 
                onValueChange={handleVolumeChange}
-               className="w-32 cursor-pointer"
+               className="w-16 sm:w-32 cursor-pointer"
             />
           </div>
 
           <div className="flex-1" />
 
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="hover:bg-slate-100 text-slate-600 bg-white h-12 w-12 rounded-2xl border border-slate-200">
-              <Settings className="h-5 w-5" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button variant="ghost" size="icon" className="hover:bg-slate-100 text-slate-600 bg-white h-10 w-10 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl border border-slate-200">
+              <Settings className="h-4 w-4 sm:h-5 sm:w-5" />
             </Button>
 
-            <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="hover:bg-slate-100 text-slate-600 bg-white h-12 w-12 rounded-2xl border border-slate-200">
-              {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" /> }
+            <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="hover:bg-slate-100 text-slate-600 bg-white h-10 w-10 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl border border-slate-200">
+              {isFullscreen ? <Minimize className="h-4 w-4 sm:h-5 sm:w-5" /> : <Maximize className="h-4 w-4 sm:h-5 sm:w-5" /> }
             </Button>
           </div>
         </div>

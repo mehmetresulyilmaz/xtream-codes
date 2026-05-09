@@ -27,8 +27,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin, isLoading, error }) => {
       const username = parsed.searchParams.get('username');
       const password = parsed.searchParams.get('password');
       if (username && password) {
+        // Keep the pathname but remove get.php, player_api.php, panel_api.php, etc.
+        let baseUrl = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+        baseUrl = baseUrl.replace(/\/(get|player_api|panel_api|enigma2|xml)\.php$/, '')
+                        .replace(/(get|player_api|panel_api|enigma2|xml)\.php$/, '');
+        
         return {
-          url: `${parsed.protocol}//${parsed.host}`,
+          url: baseUrl,
           username: username,
           password: password
         };

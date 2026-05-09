@@ -5,6 +5,7 @@ const API_VITE_PROXY = '/api/proxy';
 
 export class XtreamClient {
   private creds: XtreamCredentials;
+  private apiEndpoint: string = 'player_api.php';
 
   constructor(creds: XtreamCredentials) {
     this.creds = creds;
@@ -12,8 +13,18 @@ export class XtreamClient {
 
   private async fetchFromProxy(action: string, params: Record<string, string> = {}) {
     // Construct the actual target URL
-    const baseUrl = this.creds.url.endsWith('/') ? this.creds.url : `${this.creds.url}/`;
-    const targetUrl = new URL(`${baseUrl}player_api.php`);
+    let baseUrl = this.creds.url.trim();
+    
+    // Remove existing player_api.php, panel_api.php, or enigma2.php
+    baseUrl = baseUrl.replace(/\/(player_api|panel_api|enigma2|get|xml)\.php$/, '')
+                    .replace(/(player_api|panel_api|enigma2|get|xml)\.php$/, '');
+    
+    // Ensure trailing slash
+    if (!baseUrl.endsWith('/')) {
+      baseUrl += '/';
+    }
+    
+    const targetUrl = new URL(`${baseUrl}${this.apiEndpoint}`);
     
     targetUrl.searchParams.append('username', this.creds.username);
     targetUrl.searchParams.append('password', this.creds.password);
@@ -43,7 +54,32 @@ export class XtreamClient {
   }
 
   async authenticate(): Promise<XtreamAuthResponse> {
-    return this.fetchFromProxy('');
+    try {
+      this.apiEndpoint = 'player_api.php';
+      return await this.fetchFromProxy('');
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        console.warn('player_api.php not found, trying panel_api.php fallback...');
+        this.apiEndpoint = 'panel_api.php';
+        try {
+          return await this.fetchFromProxy('');
+        } catch (fallbackError: any) {
+           if (fallbackError.response?.status === 404) {
+              console.warn('panel_api.php not found, trying enigma2.php fallback...');
+              this.apiEndpoint = 'enigma2.php';
+              try {
+                return await this.fetchFromProxy('');
+              } catch (e) {
+                // If all fails, reset to default and throw original error or best error
+                this.apiEndpoint = 'player_api.php';
+                throw fallbackError;
+              }
+           }
+           throw fallbackError;
+        }
+      }
+      throw error;
+    }
   }
 
   async getLiveCategories(): Promise<Category[]> {
@@ -92,7 +128,15 @@ export class XtreamClient {
   }
 
   getStreamUrl(streamId: number, type: 'live' | 'movie' | 'series', extension: string = 'ts'): string {
-    const baseUrl = this.creds.url.endsWith('/') ? this.creds.url : `${this.creds.url}/`;
+    let baseUrl = this.creds.url.trim();
+    
+    // Remove player_api.php or panel_api.php if accidentally included
+    baseUrl = baseUrl.replace(/\/player_api\.php$/, '').replace(/player_api\.php$/, '');
+    baseUrl = baseUrl.replace(/\/panel_api\.php$/, '').replace(/panel_api\.php$/, '');
+    
+    if (!baseUrl.endsWith('/')) {
+      baseUrl += '/';
+    }
     
     // Some servers use different paths
     if (type === 'live') {
