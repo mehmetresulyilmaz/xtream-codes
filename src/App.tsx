@@ -31,20 +31,37 @@ export default function App() {
       const newClient = new XtreamClient(creds);
       const auth = await newClient.authenticate();
       
-      // Xtream Codes API returns user_info only if auth succeeds
+      if (!auth) {
+        throw new Error('Sunucudan boş yanıt döndü');
+      }
+
+      // Some providers return failed status in a different way or have no user_info on failure
       if (auth.user_info && (auth.user_info.status === 'Active' || auth.user_info.status === 'active' || auth.user_info.status === 'Trial')) {
         setClient(newClient);
         setAuthData(auth);
         sessionStorage.setItem('xtream_creds', JSON.stringify(creds));
         toast.success('Başarıyla giriş yapıldı');
       } else {
-        setError(`Üyelik durumu kısıtlı veya pasif: ${auth.user_info?.status || 'Bilinmiyor'}`);
-        toast.error('Giriş başarısız');
+        const status = auth.user_info?.status || 'Geçersiz';
+        setError(`Giriş Başarısız: Üyelik durumu ${status}`);
+        toast.error('Oturum açılamadı');
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.response?.data?.message || 'Bağlantı hatası. Lütfen URL ve bilgileri kontrol edin.');
-      toast.error('Sunucuya bağlanılamadı');
+      let message = 'Bağlantı hatası. Lütfen URL ve bilgileri kontrol edin.';
+      
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        message = 'Sunucu zaman aşımına uğradı (Sunucu çok yavaş veya kapalı).';
+      } else if (err.response?.data?.message) {
+        message = err.response.data.message;
+      } else if (err.response?.status === 404) {
+        message = 'Sunucu adresi veya API yolu bulunamadı (404).';
+      } else if (err.response?.status === 504 || err.response?.status === 502) {
+        message = 'Sunucu şu an erişilemiyor (Gateway Error).';
+      }
+      
+      setError(message);
+      toast.error('Bağlantı başarısız');
     } finally {
       setIsLoading(false);
     }

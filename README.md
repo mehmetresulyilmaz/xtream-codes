@@ -1,6 +1,6 @@
-# XStream Pro - Web Player
+# Lura Player - Web Player
 
-XStream Pro, Xtream Codes API kullanan modern, güvenli ve performans odaklı bir IPTV web oynatıcısıdır. Kullanıcı verilerini korumak için tasarlanmış özel bir proxy katmanı ve oturum bazlı depolama mimarisi ile donatılmıştır.
+Lura Player, modern, güvenli ve performans odaklı bir IPTV web oynatıcısıdır. Kullanıcı verilerini korumak için tasarlanmış özel bir proxy katmanı ve oturum bazlı depolama mimarisi ile donatılmıştır.
 
 ## 🚀 Özellikler
 
@@ -31,7 +31,7 @@ Bu uygulama "Security-First" (Önce Güvenlik) prensibiyle geliştirilmiştir:
 
 1. Depoyu klonlayın:
    ```bash
-   git clone https://github.com/kullaniciadi/xstream-pro.git
+   git clone https://github.com/mehmetresulyilmaz/lura-player.git
    ```
 2. Bağımlılıkları yükleyin:
    ```bash

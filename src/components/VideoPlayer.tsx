@@ -24,6 +24,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
   const [error, setError] = useState<string | null>(null);
   const [useProxy, setUseProxy] = useState(false);
   const [showReload, setShowReload] = useState(false);
+  const [playerType, setPlayerType] = useState<'hls' | 'mpegts' | 'native' | null>(null);
   const controlsTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -55,84 +56,102 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title, epgInfo, o
     const isHls = url.includes('.m3u8') || url.includes('type=m3u8');
     const isTs = url.includes('.ts') || url.includes('type=ts') || (!url.includes('.m3u8') && !url.includes('.mp4'));
 
-    if (video) {
-        video.onplay = () => setIsLoading(false);
-        video.onplaying = () => setIsLoading(false);
-        
-        if (isHls && Hls.isSupported()) {
-          setPlayerType('hls');
-          hls = new Hls({
-            enableWorker: true,
-            lowLatencyMode: true,
-            backBufferLength: 90,
-            xhrSetup: (xhr) => {
-              xhr.withCredentials = false;
-            }
-          });
-          hls.loadSource(streamUrl);
-          hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            setIsLoading(false);
-            video.play().catch(e => console.log('Autoplay blocked', e));
-          });
-          hls.on(Hls.Events.ERROR, (_event, data) => {
-            if (data.fatal) {
-              if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !useProxy) {
-                console.log('HLS Network error, retrying with proxy...');
+    try {
+      if (video) {
+          video.onplay = () => setIsLoading(false);
+          video.onplaying = () => setIsLoading(false);
+          
+          if (isHls && Hls.isSupported()) {
+            setPlayerType('hls');
+            hls = new Hls({
+              enableWorker: true,
+              lowLatencyMode: true,
+              backBufferLength: 90,
+              xhrSetup: (xhr) => {
+                xhr.withCredentials = false;
+              }
+            });
+            hls.loadSource(streamUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              setIsLoading(false);
+              video.play().catch(e => console.log('Autoplay blocked', e));
+            });
+            hls.on(Hls.Events.ERROR, (_event, data) => {
+              if (data.fatal) {
+                if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !useProxy) {
+                  console.log('HLS Network error, retrying with proxy...');
+                  setUseProxy(true);
+                } else {
+                  handleFatalError('hls', data);
+                }
+              }
+            });
+          } else if (isTs && mpegts.getFeatureList().mseLivePlayback) {
+            setPlayerType('mpegts');
+            mpegtsPlayer = mpegts.createPlayer({
+              type: 'mse',
+              isLive: true,
+              url: streamUrl,
+              cors: true
+            }, {
+              enableWorker: true,
+              enableStashBuffer: false,
+              stashInitialSize: 128
+            });
+            mpegtsPlayer.attachMediaElement(video);
+            mpegtsPlayer.load();
+            mpegtsPlayer.play().catch((e: any) => console.log('mpegts autoplay blocked', e));
+            
+            mpegtsPlayer.on(mpegts.Events.ERROR, (type: any, detail: any) => {
+               console.error('mpegts error', type, detail);
+               
+               const detailStr = typeof detail === 'string' ? detail : (detail?.message || detail?.exception || JSON.stringify(detail));
+               const isNetworkError = type === mpegts.ErrorTypes.NETWORK_ERROR || 
+                                     detailStr?.toLowerCase().includes('network') ||
+                                     detailStr?.toLowerCase().includes('exception') ||
+                                     detailStr?.toLowerCase().includes('timeout') ||
+                                     detailStr?.toLowerCase().includes('failed');
+
+               if (isNetworkError && !useProxy) {
+                 console.log('mpegts Network/Exception detected, triggering proxy retry...');
+                 setUseProxy(true);
+               } else if (isNetworkError && useProxy) {
+                 // Even proxy failed, wait a bit and try one more time or show fatal
+                 setError(`Yayın bağlantısı kurulamadı (Sinyal Yok veya Engelli). Lütfen internetinizi kontrol edin.`);
+                 setIsLoading(false);
+               } else {
+                 setError(`Yayın hatası: ${type} (${detailStr || 'Bilinmiyor'})`);
+                 setIsLoading(false);
+               }
+            });
+
+            mpegtsPlayer.on(mpegts.Events.LOADING_COMPLETE, () => setIsLoading(false));
+            mpegtsPlayer.on(mpegts.Events.METADATA_ARRIVED, () => setIsLoading(false));
+            
+            setTimeout(() => {
+              if (isLoading) setIsLoading(false);
+            }, 5000);
+
+          } else {
+            setPlayerType('native');
+            video.src = streamUrl;
+            video.onloadeddata = () => setIsLoading(false);
+            video.onerror = () => {
+              if (!useProxy) {
                 setUseProxy(true);
               } else {
-                handleFatalError('hls', data);
+                setError('Bu yayın formatı tarayıcınızda desteklenmiyor.');
+                setIsLoading(false);
               }
-            }
-          });
-        } else if (isTs && mpegts.getFeatureList().mseLivePlayback) {
-          setPlayerType('mpegts');
-          mpegtsPlayer = mpegts.createPlayer({
-            type: 'mse', // or 'mpegts'
-            isLive: true,
-            url: streamUrl,
-            cors: true
-          }, {
-            enableWorker: true,
-            enableStashBuffer: false,
-            stashInitialSize: 128
-          });
-          mpegtsPlayer.attachMediaElement(video);
-          mpegtsPlayer.load();
-          mpegtsPlayer.play().catch((e: any) => console.log('mpegts autoplay blocked', e));
-          
-          mpegtsPlayer.on(mpegts.Events.ERROR, (p1: any, p2: any) => {
-             console.error('mpegts error', p1, p2);
-             if (!useProxy) {
-               setUseProxy(true);
-             } else {
-               setError('Yayın formatı desteklenmiyor veya sunucu bağlantısı kesildi.');
-               setIsLoading(false);
-             }
-          });
-
-          mpegtsPlayer.on(mpegts.Events.LOADING_COMPLETE, () => setIsLoading(false));
-          mpegtsPlayer.on(mpegts.Events.METADATA_ARRIVED, () => setIsLoading(false));
-          
-          // Fallback if metadata takes too long
-          setTimeout(() => {
-            if (isLoading) setIsLoading(false);
-          }, 5000);
-
-        } else {
-          setPlayerType('native');
-          video.src = streamUrl;
-          video.onloadeddata = () => setIsLoading(false);
-          video.onerror = () => {
-            if (!useProxy) {
-              setUseProxy(true);
-            } else {
-              setError('Bu yayın formatı tarayıcınızda desteklenmiyor.');
-              setIsLoading(false);
-            }
-          };
-          video.play().catch(e => console.log('Native autoplay blocked', e));
-        }
+            };
+            video.play().catch(e => console.log('Native autoplay blocked', e));
+          }
+      }
+    } catch (err: any) {
+      console.error('VideoPlayer initialization crash:', err);
+      setError('Oynatıcı başlatılamadı: ' + err.message);
+      setIsLoading(false);
     }
 
     function handleFatalError(type: string, data: any) {

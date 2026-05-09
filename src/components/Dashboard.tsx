@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Search, Play, Tv2, Film, Library, User, LogOut, ChevronRight, LayoutGrid, List, Menu, ShieldCheck, Settings, Lock } from 'lucide-react';
 import { XtreamClient } from '@/lib/xtream';
@@ -27,7 +26,7 @@ interface SeriesInfo {
   info: any;
 }
 
-const StreamItem = ({ 
+const StreamItem = memo(({ 
   stream, 
   viewMode, 
   onClick, 
@@ -59,7 +58,7 @@ const StreamItem = ({
   };
   
   const renderEPG = () => {
-    if (!epgInfo) return null;
+    if (!epgInfo || epgInfo.pending || epgInfo.empty) return null;
     
     const title = safeDecode(epgInfo.title || '');
     const startTime = new Date(epgInfo.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -144,7 +143,7 @@ const StreamItem = ({
       )}
     </motion.div>
   );
-};
+});
 
 export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabType>('live');
@@ -164,14 +163,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
   const [verifyCallback, setVerifyCallback] = useState<(() => void) | null>(null);
   const [lockedCategories, setLockedCategories] = useState<string[]>(JSON.parse(localStorage.getItem('xstream_locked_categories') || '[]'));
   const [displayLimit, setDisplayLimit] = useState(48);
+  const observerRef = React.useRef<HTMLDivElement>(null);
+  const epgDataRef = React.useRef<Record<string, any>>({});
   const [epgData, setEpgData] = useState<Record<string, any>>({});
 
   useEffect(() => {
     localStorage.setItem('xstream_locked_categories', JSON.stringify(lockedCategories));
   }, [lockedCategories]);
 
-  const loadEPG = async (streamId: number) => {
-    if (epgData[streamId]) return;
+  const loadEPG = useCallback(async (streamId: number) => {
+    if (epgDataRef.current[streamId]) return;
+    
+    // Mark as pending to avoid concurrent duplicate requests
+    epgDataRef.current[streamId] = { pending: true };
+    
     try {
       const data = await client.getShortEPG(streamId);
       if (data && data.epg_listings && data.epg_listings.length > 0) {
@@ -183,19 +188,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
           return now >= start && now <= end;
         }) || data.epg_listings[0];
 
+        epgDataRef.current[streamId] = current;
         setEpgData(prev => ({ ...prev, [streamId]: current }));
+      } else {
+        // No EPG data found, mark so we don't try again soon
+        epgDataRef.current[streamId] = { empty: true };
       }
     } catch (err) {
-      // Silently fail EPG
+      // Mark as failed so we don't spam the server if it returns 500
+      epgDataRef.current[streamId] = { error: true };
     }
-  };
+  }, [client]);
+
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Reset limit when changing category or tab
+    // Reset limit and scroll to top when changing category or tab
     setDisplayLimit(48);
-    
-    // If live TV, we could try to load some EPG info for the first few items
-    // but better to load on demand or when visible
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo(0, 0);
+    }
   }, [selectedCategory, activeTab]);
 
   const handleSavePin = () => {
@@ -207,6 +219,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
     setPin(tempPin);
     setShowPinSetup(false);
     toast.success('Parental PIN saved');
+  };
+
+  const handleDisablePin = () => {
+    setVerifyCallback(() => () => {
+      localStorage.removeItem('xstream_pin');
+      localStorage.removeItem('xstream_locked_categories');
+      setPin('');
+      setLockedCategories([]);
+      toast.success('Ebeveyn denetimi devre dışı bırakıldı');
+    });
+    setShowPinVerify(true);
   };
 
   const handleVerifyPin = () => {
@@ -289,13 +312,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
     }
   };
 
-  const filteredStreams = streams.filter(s => 
+  const filteredStreams = React.useMemo(() => streams.filter(s => 
     s.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ), [streams, searchQuery]);
 
-  const paginatedStreams = filteredStreams.slice(0, displayLimit);
+  const paginatedStreams = React.useMemo(() => filteredStreams.slice(0, displayLimit), [filteredStreams, displayLimit]);
 
-  const handleStreamClick = async (stream: any) => {
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && filteredStreams.length > displayLimit) {
+          setDisplayLimit(prev => prev + 48);
+        }
+      },
+      { 
+        root: scrollContainerRef.current,
+        threshold: 0.1,
+        rootMargin: '400px'
+      }
+    );
+
+    if (observerRef.current) {
+      observer.observe(observerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [filteredStreams.length, displayLimit]);
+
+  const handleStreamClick = useCallback(async (stream: any) => {
     if (activeTab === 'series') {
       setIsLoading(true);
       try {
@@ -314,15 +358,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
     if (type === 'settings') return;
     const ext = stream.container_extension || (type === 'live' ? 'ts' : 'mp4');
     const url = client.getStreamUrl(streamId, type as 'live' | 'movie' | 'series', ext);
-    setCurrentStream({ url, title: stream.name, epg: epgData[streamId] });
-  };
+    setCurrentStream({ url, title: stream.name, epg: epgDataRef.current[streamId] });
+  }, [client, activeTab]);
 
-  const handleEpisodeClick = (episode: any) => {
+  const handleEpisodeClick = useCallback((episode: any) => {
     const streamId = episode.id || episode.stream_id;
     const ext = episode.container_extension || 'mp4';
     const url = client.getStreamUrl(streamId, 'series', ext);
     setCurrentStream({ url, title: episode.title || episode.name });
-  };  return (
+  }, [client]);  return (
     <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden relative font-sans">
       {/* Atmosphere Background */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -339,8 +383,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                  <Tv2 className="h-8 w-8 text-white drop-shadow-md" />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-2xl font-black italic tracking-tighter leading-none text-slate-800">XSTREAM</h1>
-                <span className="text-[10px] uppercase tracking-[0.4em] text-orange-600 font-black mt-1">PRO CINEMA</span>
+                <h1 className="text-2xl font-black italic tracking-tighter leading-none text-slate-800">LURA</h1>
+                <span className="text-[10px] uppercase tracking-[0.4em] text-orange-600 font-black mt-1">PLAYER</span>
               </div>
            </div>
         </div>
@@ -466,26 +510,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                     <div className="p-8 bg-white/60 border border-white/60 rounded-[2.5rem] backdrop-blur-3xl shadow-xl relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 blur-[60px] rounded-full -mr-16 -mt-16" />
                       
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-10">
-                        <div className="flex items-center gap-6">
-                          <div className="p-4 bg-orange-50 text-orange-600 rounded-[1.5rem] border border-orange-100">
-                             <ShieldCheck className="h-8 w-8" />
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-10">
+                          <div className="flex items-center gap-6">
+                            <div className="p-4 bg-orange-50 text-orange-600 rounded-[1.5rem] border border-orange-100">
+                               <ShieldCheck className="h-8 w-8" />
+                            </div>
+                            <div>
+                              <h3 className="text-2xl font-black tracking-tight text-slate-800">Ebeveyn Denetimi</h3>
+                              <p className="text-slate-500 font-medium mt-1">Özel kategorileri 4 haneli bir PIN ile koruma altına alın.</p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="text-2xl font-black tracking-tight text-slate-800">Ebeveyn Denetimi</h3>
-                            <p className="text-slate-500 font-medium mt-1">Özel kategorileri 4 haneli bir PIN ile koruma altına alın.</p>
+                          <div className="flex flex-wrap gap-3">
+                            {pin && (
+                              <Button 
+                                onClick={handleDisablePin}
+                                variant="outline"
+                                className="border-red-100 text-red-600 hover:bg-red-50 rounded-2xl h-12 px-8 font-black transition-all"
+                              >
+                                PIN'i Kaldır
+                              </Button>
+                            )}
+                            <Button 
+                              onClick={() => {
+                                setTempPin('');
+                                setShowPinSetup(true);
+                              }}
+                              className="bg-slate-900 hover:bg-slate-800 text-white rounded-2xl h-12 px-8 font-black transition-all hover:scale-105 active:scale-95"
+                            >
+                              {pin ? 'PIN Değiştir' : 'PIN Oluştur'}
+                            </Button>
                           </div>
                         </div>
-                        <Button 
-                          onClick={() => {
-                            setTempPin('');
-                            setShowPinSetup(true);
-                          }}
-                          className="bg-slate-900 hover:bg-slate-800 text-white rounded-2xl h-12 px-8 font-black transition-all hover:scale-105 active:scale-95"
-                        >
-                          {pin ? 'PIN Değiştir' : 'PIN Oluştur'}
-                        </Button>
-                      </div>
 
                       {pin && (
                         <div className="space-y-6">
@@ -522,8 +577,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                      <div className="h-1.5 w-1.5 rounded-full bg-slate-200" />
                   </div>
                </div>
-               <ScrollArea className="flex-1">
-                  <div className="p-4 flex md:block overflow-x-auto md:overflow-x-visible items-center gap-3 md:space-y-2 h-full custom-scrollbar">
+               <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                  <div className="p-4 flex md:block overflow-x-auto md:overflow-x-visible items-center gap-3 md:space-y-2">
                      {isLoading && categories.length === 0 ? (
                         Array(12).fill(0).map((_, i) => (
                            <div key={i} className="px-6 py-4">
@@ -549,12 +604,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                         ))
                      )}
                   </div>
-               </ScrollArea>
+               </div>
             </aside>
 
             {/* Stream Grid Section */}
             <div className="flex-1 bg-slate-50/30 relative flex flex-col min-w-0">
-               <ScrollArea className="flex-1">
+               <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
                   <div className={`p-4 md:p-10 ${viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5 md:gap-10' : 'mx-auto max-w-5xl space-y-4'}`}>
                      {isLoading && streams.length === 0 ? (
                        Array(12).fill(0).map((_, i) => (
@@ -569,6 +624,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                             stream={stream} 
                             viewMode={viewMode} 
                             type={activeTab}
+                            epgInfo={epgData[(stream as any).stream_id]}
+                            onLoadEPG={loadEPG}
                             onClick={handleStreamClick} 
                          />
                        ))
@@ -583,20 +640,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                      )}
                      
                      {filteredStreams.length > displayLimit && (
-                       <div className="col-span-full flex justify-center py-20 pb-32">
-                         <div className="relative group">
-                           <div className="absolute inset-x-0 inset-y-0 bg-orange-500 blur-3xl opacity-20 group-hover:opacity-30 transition-opacity" />
-                           <Button 
-                             onClick={() => setDisplayLimit(prev => prev + 48)}
-                             className="relative bg-white border border-slate-200 hover:bg-slate-50 text-slate-900 rounded-[2rem] px-14 h-16 font-black tracking-tight shadow-lg transition-all hover:scale-105 active:scale-95"
-                           >
-                             Daha Fazla İçerik <span className="text-orange-600 ml-3">({filteredStreams.length - displayLimit} içerik kaldı)</span>
-                           </Button>
+                       <div ref={observerRef} className="col-span-full flex justify-center py-10 pb-20">
+                         <div className="flex items-center gap-3">
+                           <div className="h-2 w-2 bg-orange-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                           <div className="h-2 w-2 bg-orange-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                           <div className="h-2 w-2 bg-orange-500 rounded-full animate-bounce" />
                          </div>
                        </div>
                      )}
                   </div>
-               </ScrollArea>
+               </div>
                {isMobileMenuOpen && (
                  <div 
                    className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-30 md:hidden" 
@@ -618,6 +671,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black"
               >
                 <VideoPlayer 
+                  key={currentStream.url}
                   url={currentStream.url} 
                   title={currentStream.title} 
                   epgInfo={currentStream.epg}
@@ -728,7 +782,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
 
                    {/* Episodes List */}
                    <div className="flex-1 overflow-hidden flex flex-col p-12 pt-6">
-                      <ScrollArea className="flex-1 pr-6">
+                      <div className="flex-1 overflow-y-auto custom-scrollbar pr-6">
                          <div className="space-y-12">
                             {Object.entries(selectedSeries.info?.episodes || {}).map(([seasonNum, episodes]: [string, any]) => (
                                <div key={seasonNum}>
@@ -758,7 +812,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ client, authData, onLogout
                                </div>
                             ))}
                          </div>
-                      </ScrollArea>
+                      </div>
                    </div>
                  </>
                )}

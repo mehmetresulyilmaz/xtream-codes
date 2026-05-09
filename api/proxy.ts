@@ -32,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
       },
       responseType: stream === 'true' ? 'stream' : 'json',
-      timeout: 15000,
+      timeout: 120000,
     });
 
     if (stream === 'true') {

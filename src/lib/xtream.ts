@@ -27,10 +27,16 @@ export class XtreamClient {
       const response = await axios.get(API_VITE_PROXY, {
         params: {
           targetUrl: targetUrl.toString()
-        }
+        },
+        timeout: 120000
       });
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // Suppress noisy EPG errors if it's a provider internal error
+      if (action === 'get_short_epg' || action === 'get_simple_data_table') {
+        console.warn(`EPG Fetch failed for ${action}:`, error.message);
+        return null;
+      }
       console.error(`Xtream error while fetching ${action}:`, error);
       throw error;
     }

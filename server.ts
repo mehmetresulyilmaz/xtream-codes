@@ -44,7 +44,8 @@ async function startServer() {
     try {
       // Validate the URL slightly to prevent SSRF
       const parsedUrl = new URL(targetUrl);
-      // You could add whitelist here if needed
+      
+      const isStream = req.query.stream === "true";
 
       const response = await axios({
         method: req.method,
@@ -57,23 +58,45 @@ async function startServer() {
           "Accept-Encoding": "identity", // Prevent compression on streams
           "Connection": "keep-alive",
         },
-        responseType: req.query.stream === "true" ? "stream" : "json",
-        timeout: 30000, // Increased timeout for large data sets
+        responseType: isStream ? "stream" : "json",
+        timeout: isStream ? 0 : 180000, 
+        validateStatus: () => true, 
       });
 
-      if (req.query.stream === "true") {
+      if (isStream) {
         const contentType = response.headers["content-type"];
         if (contentType) res.setHeader("Content-Type", String(contentType));
+        
+        // Pass the status code from target
+        res.status(response.status);
+
         response.data.pipe(res);
+
+        // Handle client disconnect
+        req.on("close", () => {
+          if (response.data.destroy) response.data.destroy();
+        });
+
+        // Handle stream errors
+        response.data.on("error", (err: any) => {
+          console.error("Proxy stream error:", err.message);
+          res.end();
+        });
       } else {
         res.status(response.status).json(response.data);
       }
     } catch (error: any) {
-      // Don't log the full error as it might contain credentials in the URL
-      console.error("Proxy error occurred"); 
-      res.status(error.response?.status || 500).json({
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        console.error("Proxy timeout:", targetUrl);
+        return res.status(504).json({
+          error: "Provider Timeout",
+          message: "The provider took too long to respond. Please try again or check your provider status.",
+        });
+      }
+      console.error("Proxy integration error:", error.message); 
+      res.status(500).json({
         error: "Server connectivity error",
-        message: "Connectivity error occurred.",
+        message: "Connectivity error occurred while communicating with the provider.",
       });
     }
   });
